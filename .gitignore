@@ -1,6 +1,9 @@
 # Ignore configuration files containing sensitive information
 config.json
 
+# Ignore the cheatsheet
+cheatsheet
+
 # Ignore log files
 logs/
 *.log
