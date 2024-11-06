@@ -1,8 +1,11 @@
+# Signed tagged release
+
+
 from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFileDialog, QComboBox, QItemDelegate, 
                              QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
                              QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog)
-from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices
+from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent
 from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl
 from datetime import datetime
 from pathlib import Path
