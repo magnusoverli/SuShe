@@ -1,0 +1,190 @@
+* {
+    font-family: 'Segoe UI', Arial, sans-serif; /* Default font */
+    font-size: 10pt; /* Default size */
+    color: #FFFFFF; /* Default text color */
+}
+
+QMainWindow {
+    background-color: #2D2D30;
+}
+
+QPushButton {
+    background-color: #3A3A3C;
+    border: 1px solid #555;
+    padding: 5px;
+    border-radius: 10px;
+}
+
+QPushButton:hover {
+    background-color: #505050;
+}
+
+QTabWidget::pane {
+    border: 1px solid #555
+}
+
+QHeaderView {
+    background-color: #3A3A3C; /* Adjust the background color to match your UI theme */
+}
+
+QHeaderView::section {
+    background-color: #3A3A3C;
+    color: white;
+    border: 1px solid #555;
+    padding: 4px;
+    font-size: 10pt;
+    font-weight: bold;
+}
+
+QDoubleSpinBox {
+    color: #FFFFFF; /* White text color */
+    font-size: 14px;
+    background-color: #3A3A3C;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+QDoubleSpinBox::down-button,
+QDoubleSpinBox::up-button {
+    width: 0px; /* Hide the spin box buttons */
+}
+
+QDoubleSpinBox::selection {
+    background-color: #2D2D30;
+    color: #ffffff;
+}
+
+QDoubleSpinBox::placeholderText {
+    color: #a0a0a0; /* Light grey placeholder text color */
+}
+
+QTabBar::tab {
+    background: #3A3A3C;
+    padding: 5px;
+    border-radius: 5px;
+    margin-left: 2px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background: #505050;
+}
+
+QListWidget, QTableWidget {
+    background-color: #333335;
+    border: 1px solid #CCCCCC;
+    border-radius: 5px;
+}
+
+QListWidget::vertical {
+    border: 1px solid #CCCCCC;
+    background: #2D2D30; /* Match the QListWidget background */
+    width: 10px; /* Adjust the width as needed */
+}
+
+QListWidget::handle:vertical {
+    background: #3A3A3C; /* Handle color */
+    border-radius: 5px; /* Optional: adds rounded corners to the handle */
+}
+
+QListWidget::add-line:vertical, QListWidget::sub-line:vertical {
+    border: none;
+    background: none;
+}
+
+QListWidget::up-arrow:vertical, QListWidget::down-arrow:vertical {
+    background: none;
+}
+
+QLineEdit {
+    border-radius: 5px;
+    padding: 2px;
+    background-color: #333335;
+}
+
+QMenuBar {
+    background-color: #3A3A3C;
+    color: white;
+    border: 1px solid #555;
+}
+
+QMenuBar::item {
+    background-color: #3A3A3C;
+    color: white;
+}
+
+QMenuBar::item:selected { /* when selected using mouse or keyboard */
+    background-color: #A0A0A0;
+    border-radius: 5px;
+}
+
+QMenu {
+    background-color: #3A3A3C;
+    color: white;
+    border: 1px solid #555;
+}
+
+QMenu::item {
+    background-color: #3A3A3C;
+    color: white;
+    padding: 4px 20px; /* Adjusted padding: vertical | horizontal */
+}
+
+QMenu::item:selected { /* when hovered over */
+    background-color: #A0A0A0;
+    border-radius: 5px;
+}
+
+QDialog {
+    background-color: #2e2e2e; /* Dark grey background */
+}
+
+QMessageBox {
+    background-color: #2D2D30;
+}
+
+QTextBrowser {
+    background-color: #2e2e2e; /* Match dialog background */
+    color: #FFFFFF; /* White text */
+    border: none; /* Remove border */
+    padding: 10px; /* Add padding */
+    font-size: 10pt; /* Adjust font size */
+}
+
+QComboBox {
+    border: 1px solid gray;
+    border-radius: 3px;
+    padding: 1px 18px 1px 3px;
+    min-width: 6em;
+    color: white;
+    background-color: #2D2D30;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 15px;
+    border-left-width: 1px;
+    border-left-color: darkgray;
+    border-left-style: solid;
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: #2D2D30;
+}
+
+QComboBox::down-arrow {
+    image: url("");
+}
+
+QComboBox QAbstractItemView {
+    border: 2px solid darkgray;
+    selection-background-color: lightgray;
+    background-color: #2D2D30;
+    color: white;
+}
+
+QTableWidget::item:selected {
+    background-color: #2D2D30; /* Adjust the color to match your application's theme */
+    color: #FFFFFF; /* Adjust text color if needed */
+}

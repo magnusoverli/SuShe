@@ -1,0 +1,15 @@
+# Ignore configuration files containing sensitive information
+config.json
+
+# Ignore log files
+logs/
+*.log
+
+# Ignore virtual environment directories
+venv/
+env/
+ENV/
+.venv/
+installer/
+build/
+dist/
