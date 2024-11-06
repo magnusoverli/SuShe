@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFi
                              QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
                              QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog)
-from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices
+from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent
 from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl
 from datetime import datetime
 from pathlib import Path
@@ -257,6 +257,7 @@ class SubmitDialog(QDialog):
 
         # Compose the caption message
         caption_message = f"Here is the list from {name}."
+
 
         # Start a worker thread for submission
         self.worker = SubmitWorker(
@@ -542,6 +543,55 @@ class ManualAddAlbumDialog(QDialog):
                 continue
         return None
 
+class UpdateDialog(QDialog):
+    def __init__(self, latest_version, current_version, release_notes_url, parent=None):
+        super().__init__(parent)
+        self.latest_version = latest_version
+        self.current_version = current_version
+        self.release_notes_url = release_notes_url
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("Update Available")
+        self.setModal(True)
+        self.resize(450, 250)  # Adjusted size to accommodate additional text
+
+        layout = QVBoxLayout()
+
+        # Update Message
+        message_label = QLabel(f"""
+            <p>A new version <b>{self.latest_version}</b> is available.</p>
+            <p>You are running version <b>{self.current_version}</b>.</p>
+            <p>Do you want to download and install the updated version of SuShe?</p>
+            """)
+        message_label.setWordWrap(True)
+        layout.addWidget(message_label)
+
+        # Release Notes Link
+        if self.release_notes_url:
+            release_notes_label = QLabel(f'<a href="{self.release_notes_url}">View Release Notes</a>')
+            release_notes_label.setTextFormat(Qt.TextFormat.RichText)
+            release_notes_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+            release_notes_label.setOpenExternalLinks(True)
+            layout.addWidget(release_notes_label)
+
+        # Buttons Layout
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        self.yes_button = QPushButton("Yes")
+        self.no_button = QPushButton("No")
+
+        button_layout.addWidget(self.yes_button)
+        button_layout.addWidget(self.no_button)
+
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+
+        # Connect Buttons
+        self.yes_button.clicked.connect(self.accept)
+        self.no_button.clicked.connect(self.reject)
+
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
         super().__init__()
@@ -559,22 +609,27 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.credentials_path = self.resource_path('credentials.json')
 
     def perform_initialization(self):
-        # Now initialize UI and other components
+        # Initialize UI and other components
         self.initUI()  # Initialize UI elements before loading settings
         self.load_config()
         self.load_settings()
         self.update_recent_files_menu()
+        
         if self.last_opened_file and os.path.exists(self.last_opened_file):
             self.load_album_data(self.last_opened_file)
             self.current_file_path = self.last_opened_file
             self.update_window_title()
             self.dataChanged = False
 
-        # Perform the update check
-        self.check_for_updates()
-        
-        # Show the main window after update check is done
-        self.show()
+        # Perform the update check and decide whether to show the main window
+        should_show = self.check_for_updates()
+
+        if should_show:
+            # Show the main window after update check is done
+            self.show()
+        else:
+            # The user chose to download an update; exit the application
+            logging.info("Exiting application after initiating update download.")
 
     def initUI(self):
         self.client_id = None
@@ -674,31 +729,28 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def check_for_updates(self):
         if not all([self.github_token, self.github_owner, self.github_repo]):
             logging.warning("GitHub credentials are missing. Update check will not proceed.")
-            return
+            return True  # Proceed to show the main window
 
         current_version = self.version
-        latest_version, download_url = self.get_latest_github_release()
+        latest_version, download_url, release_notes_url = self.get_latest_github_release()
 
         if latest_version and download_url:
             from packaging import version
             if version.parse(latest_version) > version.parse(current_version):
                 logging.info(f"A new version {latest_version} is available.")
-                reply = QMessageBox.question(
-                    None,  # Parent is None since the main window isn't shown yet
-                    "Update Available",
-                    f"A new version {latest_version} is available. Do you want to download it?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.Yes:
+                update_dialog = UpdateDialog(latest_version, current_version, release_notes_url)
+                reply = update_dialog.exec()
+
+                if reply == QDialog.DialogCode.Accepted:
                     self.download_and_install_update(download_url)
-                    # Since the application will exit after the update, we don't need to show the main window
-                    return
+                    # User chose to download the update; do not show the main window
+                    return False
                 else:
                     logging.info("User chose not to update.")
-            else:
-                logging.info("No updates available.")
         else:
             logging.error("Failed to fetch the latest release information.")
+
+        return True  # Proceed to show the main window
 
     def get_latest_github_release(self):
         url = f"https://api.github.com/repos/{self.github_owner}/{self.github_repo}/releases/latest"
@@ -711,6 +763,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             response.raise_for_status()
             release_info = response.json()
             latest_version = release_info.get('tag_name')
+            release_notes_url = release_info.get('html_url')  # URL to the release page with notes
             assets = release_info.get('assets', [])
             if assets:
                 # Log the names of available assets
@@ -719,15 +772,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 for asset in assets:
                     if asset['name'].endswith('.exe'):
                         download_url = asset.get('url')  # Use 'url' for API endpoint
-                        return latest_version, download_url
+                        return latest_version, download_url, release_notes_url
                 logging.error("No executable (.exe) assets found in the latest release.")
-                return None, None
+                return None, None, release_notes_url
             else:
                 logging.error("No assets found in the latest release.")
-                return None, None
+                return None, None, release_notes_url
         except requests.exceptions.RequestException as e:
             logging.error(f"Error fetching latest release: {e}")
-            return None, None
+            return None, None, None
 
     def download_and_install_update(self, download_url):
         self.progress_dialog = QProgressDialog("Downloading Update...", "Cancel", 0, 100, self)
@@ -2235,7 +2288,7 @@ if __name__ == "__main__":
     app = QApplication([])
     print("QApplication created.")
 
-    # Set the application font to ensure support for special characters
+    # Set the application font to ensure support for certain characters
     app.setFont(QFont("Arial", 10))
     print("Font set.")
 
