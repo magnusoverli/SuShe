@@ -13,3 +13,6 @@ ENV/
 installer/
 build/
 dist/
+
+#Include the installer executable
+!installer/SuShe\ Installer\ v*.exe
