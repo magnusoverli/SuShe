@@ -16,7 +16,6 @@ output_name = f'SuShe_v{version}'
 # Define additional data files and directories to be included
 datas = [
     ('style.qss', '.'),
-    ('credentials.json', '.'),
     ('countries.txt', '.'),
     ('genres.txt', '.'),
     ('help.md', '.'),
