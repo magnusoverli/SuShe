@@ -2236,7 +2236,7 @@ if __name__ == "__main__":
     app = QApplication([])
     print("QApplication created.")
 
-    # Set the application font to ensure support for special characters
+    # Set the application font to ensure support for certain characters
     app.setFont(QFont("Arial", 10))
     print("Font set.")
 
