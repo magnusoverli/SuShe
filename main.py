@@ -258,6 +258,7 @@ class SubmitDialog(QDialog):
         # Compose the caption message
         caption_message = f"Here is the list from {name}."
 
+
         # Start a worker thread for submission
         self.worker = SubmitWorker(
             self.bot_token,
