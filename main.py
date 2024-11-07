@@ -1193,7 +1193,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setColumnWidth(0, 130)  # Example width for the "Artist" column
         self.album_table.setColumnWidth(1, 200)  # Adjusted width for the "Album" column
         self.album_table.setColumnWidth(2, 100)  # Example width for the "Release Date" column
-        self.album_table.setColumnWidth(3, 120)  # Adjusted width for the "Cover" column
+        self.album_table.setColumnWidth(3, 107)  # Adjusted width for the "Cover" column
         self.album_table.setColumnWidth(4, 150)  # Example width for the "Country" column
         self.album_table.setColumnWidth(5, 170)  # Adjusted width for the "Genre 1" column
         self.album_table.setColumnWidth(6, 170)  # Adjusted width for the "Genre 2" column
@@ -1714,6 +1714,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 icon = QIcon(str(image_path))
                 cover_item = QTableWidgetItem()
                 cover_item.setIcon(icon)
+                cover_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.album_table.setItem(row_position, 3, cover_item)
                 self.album_table.setRowHeight(row_position, 100)
                 self.album_table.setIconSize(QSize(100, 100))
@@ -2084,6 +2085,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 icon = QIcon(scaled_pixmap)
                 item = QTableWidgetItem()
                 item.setIcon(icon)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)  # Center align the icon
                 self.album_table.setItem(row_pos, 3, item)
                 self.album_table.setRowHeight(row_pos, 100)  # Ensure row height matches the image size
                 self.album_table.setIconSize(QSize(100, 100))  # Set icon size
@@ -2171,6 +2173,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             icon = QIcon(pixmap)
             cover_item = QTableWidgetItem()
             cover_item.setIcon(icon)
+            cover_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.album_table.setItem(row_position, 3, cover_item)
             self.album_table.setRowHeight(row_position, 100)
             self.album_table.setIconSize(QSize(100, 100))
