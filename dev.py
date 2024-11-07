@@ -309,9 +309,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
         comboBox.addItems(self.items)
         comboBox.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
 
-        # Create the completer and set a custom style for the popup
+        # Create the completer and set it to be case insensitive
         completer = QCompleter(self.items, comboBox)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         comboBox.setCompleter(completer)
 
         # Apply the dark background style to the completer popup
