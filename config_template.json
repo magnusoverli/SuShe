@@ -6,7 +6,7 @@
     "telegram": {
         "bot_token": "",
         "chat_id": "",
-        "message_thread_id": "3"
+        "message_thread_id": ""
     },
     "tidal": {
         "client_id": "",
