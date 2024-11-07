@@ -21,9 +21,9 @@ Brutal Death Metal
 Brutal Prog
 Celtic Metal
 Chamber folk
+Christian rock 
 Comedy rock
 Contemporary Folk
-Christian rock 
 Crack Rock Steady
 Crossover Thrash
 Crust Punk
@@ -93,14 +93,15 @@ Mincecore
 Mittelalter-Metal
 Mittelalter-Rock
 Mongolian Music
+Neo-medieval folk 
 Neoclassical Metal
 Neocrust
 Neofolk
-Neo-medieval folk 
 Neue Deutsche Härte
 New York Hardcore
 Nintendocore
-Noisecore
+Noise Core
+Noise Rock
 Noisegrind
 Nordic Folk Rock
 Nu Metal
@@ -117,6 +118,7 @@ Powerviolence
 Progressive Folk
 Progressive Metal
 Progressive Rock
+Psycedelic Rock
 Rap Metal
 Rock opera
 Russian Orthodox Liturgical Music
