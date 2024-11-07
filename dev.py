@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFileDialog, QComboBox, QItemDelegate, 
                              QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
-                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog)
+                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent
 from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl
 from datetime import datetime
@@ -298,42 +298,55 @@ class CustomDoubleSpinBox(QDoubleSpinBox):
         else:
             super().keyPressEvent(event)
 
-class ComboBoxDelegate(QItemDelegate):
+class ComboBoxDelegate(QStyledItemDelegate):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items
 
     def createEditor(self, parent, option, index):
         comboBox = QComboBox(parent)
+        comboBox.setEditable(True)
         comboBox.addItems(self.items)
-        style_sheet_path = resource_path('style.qss')
-        with open(style_sheet_path, "r") as file:
-            comboBox.setStyleSheet(file.read())
+        comboBox.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
 
-        # Ensure data is committed upon selection
-        comboBox.currentIndexChanged.connect(lambda _: self.commitAndCloseEditor(comboBox))
+        # Create the completer and set a custom style for the popup
+        completer = QCompleter(self.items, comboBox)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        comboBox.setCompleter(completer)
 
-        # Set the default active item to be the first option
+        # Apply the dark background style to the completer popup
+        completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
+        comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
+
+        # Connect the 'currentIndexChanged' signal to commit data and close editor
+        comboBox.currentIndexChanged.connect(partial(self.commitAndClose, comboBox))
+
+        # Initialize the current text
         current_value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
         if current_value in self.items:
-            current_index = self.items.index(current_value)
-            comboBox.setCurrentIndex(current_index)
+            comboBox.setCurrentIndex(self.items.index(current_value))
         else:
-            comboBox.setCurrentIndex(0)  # Default to the first item if current value is not in items
-        
+            comboBox.setCurrentIndex(-1)
+
         return comboBox
 
-    def commitAndCloseEditor(self, comboBox):
-        self.commitData.emit(comboBox)
-        self.closeEditor.emit(comboBox, QAbstractItemDelegate.EndEditHint.NoHint)
+    def commitAndClose(self, editor):
+        """
+        Commit the data from the editor to the model and close the editor.
+        """
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
 
-    def setEditorData(self, comboBox, index):
+    def setEditorData(self, editor, index):
         value = index.model().data(index, Qt.ItemDataRole.EditRole)
-        idx = comboBox.findText(value, Qt.MatchFlag.MatchFixedString)
-        comboBox.setCurrentIndex(idx if idx >= 0 else 0)
+        idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
+        editor.setCurrentIndex(idx if idx >= 0 else -1)
 
-    def setModelData(self, comboBox, model, index):
-        model.setData(index, comboBox.currentText(), Qt.ItemDataRole.EditRole)
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
 
 class HelpDialog(QDialog):
     def __init__(self, html_content, parent=None):
@@ -646,7 +659,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_details_worker = None
 
         self.setAcceptDrops(True)
-        self.resize(1400, 700)
+        self.resize(1500, 800)
         self.setWindowTitle("SuShe!")
         self.setWindowIcon(QIcon(resource_path(os.path.join("logos", "logo.ico"))))
 
@@ -1122,16 +1135,23 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         self.album_table = QTableWidget()
         self.album_table.setColumnCount(9)
-        self.album_table.setHorizontalHeaderLabels(["Artist", "Album", "Release Date", "Cover Image", "Country", "Genre 1", "Genre 2", "Rating", "Comments"])
+        self.album_table.setHorizontalHeaderLabels([
+            "Artist", "Album", "Release Date", "Cover Image",
+            "Country", "Genre 1", "Genre 2", "Rating", "Comments"
+        ])
         layout.addWidget(self.album_table)
+
+        # Create separate delegate instances for countries and genres
         country_delegate = ComboBoxDelegate(self.countries, self.album_table)
-        genre_delegate = ComboBoxDelegate(self.genres, self.album_table)
+        genre_delegate_1 = ComboBoxDelegate(self.genres, self.album_table)
+        genre_delegate_2 = ComboBoxDelegate(self.genres, self.album_table)
         rating_delegate = RatingDelegate(self.album_table)
 
-        self.album_table.setItemDelegateForColumn(4, country_delegate)  # Assuming 'Country' is column 4
-        self.album_table.setItemDelegateForColumn(5, genre_delegate)    # Assuming 'Genre 1' is column 5
-        self.album_table.setItemDelegateForColumn(6, genre_delegate)    # Assuming 'Genre 2' is column 6
-        self.album_table.setItemDelegateForColumn(7, rating_delegate) 
+        # Assign delegates to respective columns
+        self.album_table.setItemDelegateForColumn(4, country_delegate)  # 'Country' column
+        self.album_table.setItemDelegateForColumn(5, genre_delegate_1) # 'Genre 1' column
+        self.album_table.setItemDelegateForColumn(6, genre_delegate_2) # 'Genre 2' column
+        self.album_table.setItemDelegateForColumn(7, rating_delegate)    # 'Rating' column
 
         self.album_table.cellClicked.connect(self.handleCellClick)
         self.album_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -1171,12 +1191,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def set_album_table_column_widths(self):
         # Set the desired column widths
         self.album_table.setColumnWidth(0, 130)  # Example width for the "Artist" column
-        self.album_table.setColumnWidth(1, 300)  # Adjusted width for the "Album" column
+        self.album_table.setColumnWidth(1, 200)  # Adjusted width for the "Album" column
         self.album_table.setColumnWidth(2, 100)  # Example width for the "Release Date" column
         self.album_table.setColumnWidth(3, 120)  # Adjusted width for the "Cover" column
         self.album_table.setColumnWidth(4, 150)  # Example width for the "Country" column
-        self.album_table.setColumnWidth(5, 130)  # Adjusted width for the "Genre 1" column
-        self.album_table.setColumnWidth(6, 130)  # Adjusted width for the "Genre 2" column
+        self.album_table.setColumnWidth(5, 170)  # Adjusted width for the "Genre 1" column
+        self.album_table.setColumnWidth(6, 170)  # Adjusted width for the "Genre 2" column
         self.album_table.setColumnWidth(7, 65)  # Adjusted width for the "Rating" column
         self.album_table.setColumnWidth(8, 340)  # Adjusted width for the "Comments" column
 
