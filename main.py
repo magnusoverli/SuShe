@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFileDialog, QComboBox, QItemDelegate, 
                              QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
-                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView)
+                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QTextOption, QTextLayout, QPalette
 from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
 from datetime import datetime
@@ -607,85 +607,199 @@ class UpdateDialog(QDialog):
         self.no_button.clicked.connect(self.reject)
 
 class SearchHighlightDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, highlight_color=Qt.GlobalColor.darkYellow):
         super().__init__(parent)
         self.search_text = ""
+        self.highlight_color = highlight_color
 
     def set_search_text(self, text):
         self.search_text = text.lower()
-        # Update the view to repaint with new search text
         self.parent().viewport().update()
 
     def paint(self, painter, option, index):
-        # Draw the default item
-        super().paint(painter, option, index)
+        try:
+            painter.save()
 
-        if self.search_text:
+            parent = self.parent()
+            if parent is None:
+                logging.error("Delegate parent is None")
+                super().paint(painter, option, index)
+                return
+
+            # Draw the background
+            option.widget.style().drawPrimitive(
+                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+            )
+
             # Get the cell text
             data = index.data(Qt.ItemDataRole.DisplayRole)
             if not data:
                 # Handle QLabel cells (e.g., album names with hyperlinks)
-                widget = self.parent().cellWidget(index.row(), index.column())
+                widget = parent.cellWidget(index.row(), index.column())
                 if isinstance(widget, QLabel):
                     data = self.strip_html_tags(widget.text())
+
             if data:
                 data_lower = data.lower()
-                search_text = self.search_text
-                if search_text in data_lower:
-                    # Find all occurrences of the search text
-                    matches = []
+                if self.search_text and self.search_text in data_lower:
+                    # Prepare to draw the text with highlighted matches
+                    painter.setClipRect(option.rect)
+                    text_rect = option.rect.adjusted(5, 0, -5, 0)
+
+                    # Set up font metrics
+                    fm = painter.fontMetrics()
+                    text_height = fm.height()
+                    x = text_rect.left()
+                    y = text_rect.top() + (text_rect.height() - text_height) / 2
+
+                    # Split the text into segments
+                    segments = []
                     start = 0
                     while True:
-                        start = data_lower.find(search_text, start)
-                        if start == -1:
+                        idx = data_lower.find(self.search_text, start)
+                        if idx == -1:
+                            segments.append((data[start:], False))
                             break
-                        end = start + len(search_text)
-                        matches.append((start, end))
-                        start = end
+                        if idx > start:
+                            segments.append((data[start:idx], False))
+                        segments.append((data[idx:idx+len(self.search_text)], True))
+                        start = idx + len(self.search_text)
 
-                    # Prepare the text layout
-                    painter.save()
-                    painter.setClipRect(option.rect)
-                    text_option = QTextOption(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                    text_rect = option.rect.adjusted(5, 0, -5, 0)  # Adjust for padding
-
-                    # Create a QTextLayout to manage text drawing
-                    text_layout = QTextLayout(data, option.font)
-                    text_layout.setTextOption(text_option)
-                    text_layout.beginLayout()
-                    line = text_layout.createLine()
-                    line.setLineWidth(text_rect.width())
-                    text_layout.endLayout()
-
-                    # Draw the text with highlights
-                    line_rect = QRectF(text_rect)
-                    line_y = line_rect.top() + (line_rect.height() - line.height()) / 2
-                    line.setPosition(QPointF(line_rect.left(), line_y))
-
-                    # Draw background highlights for matches
-                    for start, end in matches:
-                        pre_text = data[:start]
-                        match_text = data[start:end]
-                        pre_width = option.fontMetrics.horizontalAdvance(pre_text)
-                        match_width = option.fontMetrics.horizontalAdvance(match_text)
-                        highlight_rect = QRectF(
-                            text_rect.left() + pre_width,
-                            line_y,
-                            match_width,
-                            line.height()
-                        )
-                        painter.fillRect(highlight_rect, Qt.GlobalColor.yellow)
-
-                    # Draw the text over the highlights
-                    painter.setPen(option.palette.color(QPalette.ColorGroup.Normal, QPalette.ColorRole.Text))
-                    text_layout.draw(painter, QPointF(text_rect.left(), line_y))
-                    painter.restore()
+                    # Draw each segment
+                    for segment, is_match in segments:
+                        segment_width = fm.horizontalAdvance(segment)
+                        segment_rect = QRectF(x, y, segment_width, text_height)
+                        if is_match:
+                            painter.fillRect(segment_rect, self.highlight_color)
+                        painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                        painter.drawText(QPointF(x, y + fm.ascent()), segment)
+                        x += segment_width
+                else:
+                    # No matches, draw text normally
+                    super().paint(painter, option, index)
+            else:
+                # No data, draw normally
+                super().paint(painter, option, index)
+        except Exception as e:
+            logging.error(f"Error in SearchHighlightDelegate.paint: {e}")
+        finally:
+            painter.restore()
 
     def strip_html_tags(self, text):
         import re
         from html import unescape
         clean = re.compile('<.*?>')
         return unescape(re.sub(clean, '', text))
+
+class GenreSearchDelegate(QStyledItemDelegate):
+    def __init__(self, items, parent=None, highlight_color=Qt.GlobalColor.cyan):
+        super().__init__(parent)
+        self.items = items
+        self.search_text = ""
+        self.highlight_color = highlight_color
+
+    def set_search_text(self, text):
+        self.search_text = text.lower()
+        self.parent().viewport().update()
+
+    def createEditor(self, parent, option, index):
+        comboBox = QComboBox(parent)
+        comboBox.setEditable(True)
+        comboBox.addItems(self.items)
+        comboBox.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+
+        # Create the completer and set it to be case insensitive
+        completer = QCompleter(self.items, comboBox)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        comboBox.setCompleter(completer)
+
+        # Apply the dark background style to the completer popup
+        completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
+        comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
+
+        # Connect the 'currentIndexChanged' signal to commit data and close editor
+        comboBox.currentIndexChanged.connect(partial(self.commitAndClose, comboBox))
+
+        # Initialize the current text
+        current_value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
+        if current_value in self.items:
+            comboBox.setCurrentIndex(self.items.index(current_value))
+        else:
+            comboBox.setCurrentIndex(-1)
+
+        return comboBox
+
+    def commitAndClose(self, editor):
+        self.commitData.emit(editor)
+        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
+
+    def setEditorData(self, editor, index):
+        value = index.model().data(index, Qt.ItemDataRole.EditRole)
+        idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
+        editor.setCurrentIndex(idx if idx >= 0 else -1)
+
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
+
+    def paint(self, painter, option, index):
+        painter.save()
+
+        try:
+            # Draw the background
+            option.widget.style().drawPrimitive(
+                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, option.widget
+            )
+
+            data = index.data(Qt.ItemDataRole.DisplayRole)
+            if data:
+                data_lower = data.lower()
+                if self.search_text and self.search_text in data_lower:
+                    # Prepare to draw the text with highlighted matches
+                    painter.setClipRect(option.rect)
+                    text_rect = option.rect.adjusted(5, 0, -5, 0)
+
+                    # Set up font metrics
+                    fm = painter.fontMetrics()
+                    text_height = fm.height()
+                    x = text_rect.left()
+                    y = text_rect.top() + (text_rect.height() - text_height) / 2
+
+                    # Split the text into segments
+                    segments = []
+                    start = 0
+                    while True:
+                        idx = data_lower.find(self.search_text, start)
+                        if idx == -1:
+                            segments.append((data[start:], False))
+                            break
+                        if idx > start:
+                            segments.append((data[start:idx], False))
+                        segments.append((data[idx:idx+len(self.search_text)], True))
+                        start = idx + len(self.search_text)
+
+                    # Draw each segment
+                    for segment, is_match in segments:
+                        segment_width = fm.horizontalAdvance(segment)
+                        segment_rect = QRectF(x, y, segment_width, text_height)
+                        if is_match:
+                            painter.fillRect(segment_rect, self.highlight_color)
+                        painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                        painter.drawText(QPointF(x, y + fm.ascent()), segment)
+                        x += segment_width
+                else:
+                    # No matches, draw text normally
+                    super().paint(painter, option, index)
+            else:
+                # No data, draw normally
+                super().paint(painter, option, index)
+        except Exception as e:
+            logging.error(f"Error in GenreSearchDelegate.paint: {e}")
+        finally:
+            painter.restore()
 
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
@@ -1014,7 +1128,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if not hasattr(self, 'search_widget'):
             self.search_bar = QLineEdit(self)
             self.search_bar.setPlaceholderText("Search...")
-            self.search_bar.returnPressed.connect(self.search_album_list)
+            self.search_bar.returnPressed.connect(self.goto_next_match)
             self.search_bar.textChanged.connect(self.search_album_list)
 
             # 'Next' and 'Previous' buttons
@@ -1040,19 +1154,30 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.album_list_tab.layout().insertWidget(0, self.search_widget)
             self.search_widget.hide()
 
-        self.search_widget.show()
-        self.search_bar.setFocus()
+        if self.search_widget.isVisible():
+            self.hide_search_bar()  # Hide and clear highlights
+        else:
+            self.search_widget.show()
+            self.search_bar.setFocus()
 
     def hide_search_bar(self):
         self.search_widget.hide()
         self.search_bar.clear()
+        # Clear search text in all delegates
         self.search_delegate.set_search_text("")
+        self.genre_delegate_1.set_search_text("")
+        self.genre_delegate_2.set_search_text("")
+        # Clear matches
         self.matches = []
         self.current_match_index = -1
+        # Update the view to remove highlights
+        self.album_table.viewport().update()
 
     def search_album_list(self):
         search_text = self.search_bar.text().strip().lower()
         self.search_delegate.set_search_text(search_text)
+        self.genre_delegate_1.set_search_text(search_text)
+        self.genre_delegate_2.set_search_text(search_text)
 
         self.matches = []
 
@@ -1060,9 +1185,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.current_match_index = -1
             return
 
+        # Columns to search
+        columns_to_search = [0, 1, 5, 6, 8]  # Artist, Album, Genre 1, Genre 2, Comments
+
         # Find matches
         for row in range(self.album_table.rowCount()):
-            for column in range(self.album_table.columnCount()):
+            for column in columns_to_search:
                 item_text = ""
                 item = self.album_table.item(row, column)
                 widget = self.album_table.cellWidget(row, column)
@@ -1333,19 +1461,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         # Create separate delegate instances for countries and genres
         country_delegate = ComboBoxDelegate(self.countries, self.album_table)
-        genre_delegate_1 = ComboBoxDelegate(self.genres, self.album_table)
-        genre_delegate_2 = ComboBoxDelegate(self.genres, self.album_table)
+        self.genre_delegate_1 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        self.genre_delegate_2 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
         rating_delegate = RatingDelegate(self.album_table)
 
         # Assign delegates to respective columns
-        self.album_table.setItemDelegateForColumn(4, country_delegate)  # 'Country' column
-        self.album_table.setItemDelegateForColumn(5, genre_delegate_1)  # 'Genre 1' column
-        self.album_table.setItemDelegateForColumn(6, genre_delegate_2)  # 'Genre 2' column
-        self.album_table.setItemDelegateForColumn(7, rating_delegate)   # 'Rating' column
+        self.album_table.setItemDelegateForColumn(4, country_delegate)      # 'Country' column
+        self.album_table.setItemDelegateForColumn(5, self.genre_delegate_1)  # 'Genre 1' column
+        self.album_table.setItemDelegateForColumn(6, self.genre_delegate_2)  # 'Genre 2' column
+        self.album_table.setItemDelegateForColumn(7, rating_delegate)       # 'Rating' column
 
-        # Set the search highlight delegate for other columns
-        self.search_delegate = SearchHighlightDelegate(self.album_table)
-        for column in [0, 1, 2, 3, 8]:  # Columns without custom delegates
+        # Set the search highlight delegate for specified columns
+        self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        for column in [0, 1, 8]:  # Columns to search: Artist, Album, Comments
             self.album_table.setItemDelegateForColumn(column, self.search_delegate)
 
         # Connect signals
