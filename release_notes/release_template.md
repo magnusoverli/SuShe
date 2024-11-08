@@ -1,21 +1,37 @@
-**Release Date:** <insert date>
+# 📦 Release Notes
 
-## What's New
+**📅 Release Date:** _<Insert Date>_
 
-- **New features:**
+---
 
--
+## 🚀 What's New
 
-- **Bug Fixes:**
-
--
-
-## Other Improvements
-
+### ✨ New Features
+- 
 - 
 
-## Known Issues
+### 🐛 Bug Fixes
+- 
+- 
 
--
+---
 
-## Additional Information
+## 🔧 Other Improvements
+- 
+- 
+
+---
+
+## ⚠️ Known Issues
+- 
+- 
+
+---
+
+## ℹ️ Additional Information
+- 
+- 
+
+---
+
+*If you have any questions or feedback, feel free to [contact me](mailto:magnus@overli.dev).*
