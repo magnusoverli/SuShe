@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFileDialog, QComboBox, QItemDelegate, 
                              QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
-                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter)
-from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent
-from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl
+                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView)
+from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QTextOption, QTextLayout, QPalette
+from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
 from datetime import datetime
 from pathlib import Path
 from PIL import Image, ImageQt
@@ -606,6 +606,87 @@ class UpdateDialog(QDialog):
         self.yes_button.clicked.connect(self.accept)
         self.no_button.clicked.connect(self.reject)
 
+class SearchHighlightDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.search_text = ""
+
+    def set_search_text(self, text):
+        self.search_text = text.lower()
+        # Update the view to repaint with new search text
+        self.parent().viewport().update()
+
+    def paint(self, painter, option, index):
+        # Draw the default item
+        super().paint(painter, option, index)
+
+        if self.search_text:
+            # Get the cell text
+            data = index.data(Qt.ItemDataRole.DisplayRole)
+            if not data:
+                # Handle QLabel cells (e.g., album names with hyperlinks)
+                widget = self.parent().cellWidget(index.row(), index.column())
+                if isinstance(widget, QLabel):
+                    data = self.strip_html_tags(widget.text())
+            if data:
+                data_lower = data.lower()
+                search_text = self.search_text
+                if search_text in data_lower:
+                    # Find all occurrences of the search text
+                    matches = []
+                    start = 0
+                    while True:
+                        start = data_lower.find(search_text, start)
+                        if start == -1:
+                            break
+                        end = start + len(search_text)
+                        matches.append((start, end))
+                        start = end
+
+                    # Prepare the text layout
+                    painter.save()
+                    painter.setClipRect(option.rect)
+                    text_option = QTextOption(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    text_rect = option.rect.adjusted(5, 0, -5, 0)  # Adjust for padding
+
+                    # Create a QTextLayout to manage text drawing
+                    text_layout = QTextLayout(data, option.font)
+                    text_layout.setTextOption(text_option)
+                    text_layout.beginLayout()
+                    line = text_layout.createLine()
+                    line.setLineWidth(text_rect.width())
+                    text_layout.endLayout()
+
+                    # Draw the text with highlights
+                    line_rect = QRectF(text_rect)
+                    line_y = line_rect.top() + (line_rect.height() - line.height()) / 2
+                    line.setPosition(QPointF(line_rect.left(), line_y))
+
+                    # Draw background highlights for matches
+                    for start, end in matches:
+                        pre_text = data[:start]
+                        match_text = data[start:end]
+                        pre_width = option.fontMetrics.horizontalAdvance(pre_text)
+                        match_width = option.fontMetrics.horizontalAdvance(match_text)
+                        highlight_rect = QRectF(
+                            text_rect.left() + pre_width,
+                            line_y,
+                            match_width,
+                            line.height()
+                        )
+                        painter.fillRect(highlight_rect, Qt.GlobalColor.yellow)
+
+                    # Draw the text over the highlights
+                    painter.setPen(option.palette.color(QPalette.ColorGroup.Normal, QPalette.ColorRole.Text))
+                    text_layout.draw(painter, QPointF(text_rect.left(), line_y))
+                    painter.restore()
+
+    def strip_html_tags(self, text):
+        import re
+        from html import unescape
+        clean = re.compile('<.*?>')
+        return unescape(re.sub(clean, '', text))
+
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
         super().__init__()
@@ -621,6 +702,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.message_thread_id = None
         self.dataChanged = False
         self.credentials_path = self.resource_path('credentials.json')
+
+        # Initialize search-related variables
+        self.matches = []
+        self.current_match_index = -1
 
     def perform_initialization(self):
         # Initialize UI and other components
@@ -918,6 +1003,110 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.about_menu = self.menu_bar.addMenu("About")
         self.about_menu.addAction("About SuShe").triggered.connect(self.show_about_dialog)
 
+        # Add 'Edit' menu with 'Find' action
+        self.edit_menu = self.menu_bar.addMenu("Edit")
+        find_action = QAction("Find", self)
+        find_action.setShortcut("Ctrl+F")
+        find_action.triggered.connect(self.show_search_bar)
+        self.edit_menu.addAction(find_action)
+
+    def show_search_bar(self):
+        if not hasattr(self, 'search_widget'):
+            self.search_bar = QLineEdit(self)
+            self.search_bar.setPlaceholderText("Search...")
+            self.search_bar.returnPressed.connect(self.search_album_list)
+            self.search_bar.textChanged.connect(self.search_album_list)
+
+            # 'Next' and 'Previous' buttons
+            self.search_prev_button = QPushButton("Previous")
+            self.search_next_button = QPushButton("Next")
+            self.search_close_button = QPushButton("X")
+            self.search_prev_button.clicked.connect(self.goto_previous_match)
+            self.search_next_button.clicked.connect(self.goto_next_match)
+            self.search_close_button.clicked.connect(self.hide_search_bar)
+
+            # Layout for the search bar and buttons
+            self.search_layout = QHBoxLayout()
+            self.search_layout.addWidget(self.search_bar)
+            self.search_layout.addWidget(self.search_prev_button)
+            self.search_layout.addWidget(self.search_next_button)
+            self.search_layout.addWidget(self.search_close_button)
+
+            # Container widget for the search layout
+            self.search_widget = QWidget()
+            self.search_widget.setLayout(self.search_layout)
+
+            # Add the search widget to the album_list_tab layout
+            self.album_list_tab.layout().insertWidget(0, self.search_widget)
+            self.search_widget.hide()
+
+        self.search_widget.show()
+        self.search_bar.setFocus()
+
+    def hide_search_bar(self):
+        self.search_widget.hide()
+        self.search_bar.clear()
+        self.search_delegate.set_search_text("")
+        self.matches = []
+        self.current_match_index = -1
+
+    def search_album_list(self):
+        search_text = self.search_bar.text().strip().lower()
+        self.search_delegate.set_search_text(search_text)
+
+        self.matches = []
+
+        if not search_text:
+            self.current_match_index = -1
+            return
+
+        # Find matches
+        for row in range(self.album_table.rowCount()):
+            for column in range(self.album_table.columnCount()):
+                item_text = ""
+                item = self.album_table.item(row, column)
+                widget = self.album_table.cellWidget(row, column)
+
+                if item:
+                    item_text = item.text().lower()
+                elif widget and isinstance(widget, QLabel):
+                    item_text = self.strip_html_tags(widget.text()).lower()
+
+                if search_text in item_text:
+                    self.matches.append((row, column))
+
+        self.current_match_index = -1
+        if self.matches:
+            self.goto_next_match()
+
+    def strip_html_tags(self, text):
+        import re
+        clean = re.compile('<.*?>')
+        return re.sub(clean, '', text)
+
+    def clear_search_highlights(self):
+        for row in range(self.album_table.rowCount()):
+            for column in range(self.album_table.columnCount()):
+                item = self.album_table.item(row, column)
+                if item:
+                    item.setBackground(QBrush(Qt.GlobalColor.white))
+
+    def goto_next_match(self):
+        if not self.matches:
+            return
+        self.current_match_index = (self.current_match_index + 1) % len(self.matches)
+        row, column = self.matches[self.current_match_index]
+        self.album_table.scrollToItem(self.album_table.item(row, column) or self.album_table.item(row, 0), QAbstractItemView.ScrollHint.PositionAtCenter)
+        self.album_table.setCurrentCell(row, column)
+
+    def goto_previous_match(self):
+        if not self.matches:
+            return
+        self.current_match_index = (self.current_match_index - 1) % len(self.matches)
+        row, column = self.matches[self.current_match_index]
+        self.album_table.scrollToItem(self.album_table.item(row, column) or self.album_table.item(row, 0), QAbstractItemView.ScrollHint.PositionAtCenter)
+        self.album_table.setCurrentCell(row, column)
+
     def show_about_dialog(self):
         version = self.get_app_version()
         about_text = f"""
@@ -1150,21 +1339,30 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         # Assign delegates to respective columns
         self.album_table.setItemDelegateForColumn(4, country_delegate)  # 'Country' column
-        self.album_table.setItemDelegateForColumn(5, genre_delegate_1) # 'Genre 1' column
-        self.album_table.setItemDelegateForColumn(6, genre_delegate_2) # 'Genre 2' column
-        self.album_table.setItemDelegateForColumn(7, rating_delegate)    # 'Rating' column
+        self.album_table.setItemDelegateForColumn(5, genre_delegate_1)  # 'Genre 1' column
+        self.album_table.setItemDelegateForColumn(6, genre_delegate_2)  # 'Genre 2' column
+        self.album_table.setItemDelegateForColumn(7, rating_delegate)   # 'Rating' column
 
+        # Set the search highlight delegate for other columns
+        self.search_delegate = SearchHighlightDelegate(self.album_table)
+        for column in [0, 1, 2, 3, 8]:  # Columns without custom delegates
+            self.album_table.setItemDelegateForColumn(column, self.search_delegate)
+
+        # Connect signals
         self.album_table.cellClicked.connect(self.handleCellClick)
         self.album_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.album_table.customContextMenuRequested.connect(self.show_context_menu)
-        
+
         # Enable sorting
         self.album_table.setSortingEnabled(True)
 
         # Set the column widths here
         self.set_album_table_column_widths()
 
+        # Set the layout for the album list tab
         self.album_list_tab.setLayout(layout)
+
+        # Connect additional signals
         self.album_table.horizontalHeader().sortIndicatorChanged.connect(self.on_sort_order_changed)
         self.album_table.itemChanged.connect(self.on_album_item_changed)
 
