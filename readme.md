@@ -1,4 +1,3 @@
-
 # SuShe (SuperSheet)
 
 SuShe is a very basic tool, aimed at creating rich and coherent "album-of-the-year" lists for personal use.
@@ -10,11 +9,15 @@ This lead to several tests with Excel and Google Sheets, but nothing quite fit t
 What we saw as the most pressing matter was agreeing on genres. A single album may have as many as 5-6 genres associated with them, and this made it hard to get lists where all albums where listed with the same genres.
 Syntax for (complex) band names and album names was also a challenge, but less so.
 In the end, I decided to try to build something custom made, and SuShe was born.
-### Discalimer
-**I am not a devloper!**
-I can not code!
+In my group of music enthusiasts, we have landed on making [RYM](https://rateyourmusic.com/) our source of truth. We are using the two first listed genres for an album as Genre 1 and Genre 2, respectively. 
+Some sites and platforms have also been seen to use different dates for release. RYM is also the master data in this context.
 
-I understand just enough about coding to understand basic concepts and common pitfalls/challenges.
+
+### Disclaimer
+**I am not a developer!**
+**I can not code!**
+
+I understand just enough about coding to understand basic concepts and common pitfalls/challenges. I also barely know enough to ask an AI for the right thing. It has been a turbulent but effective partnership! :-)
 
 All code included in this repo is written by an AI tool on my order.
 
@@ -32,6 +35,14 @@ The rest of the table includes columns for the following info to be added manual
 - Genre 2
 - Rating (0.00 - 5.00)
 - Comment
+
+The application stores the users list as a json file. The cover art is included in the json as a base64 encoded string. This was done to consolidate all data in a single file, making it easier for users to move, store or submit their list.
+The saved json file will store the albums sorted based on the rating in descending order. It will also store a rank value, deciding the order of the album in the list, and a points value. The points is only relevant if you want to compile some aggregated album of the year list, comprised of lists from multiple users. 
+
+It is also supported to open an album directly from the list, in the preferred player of the user (Spotify or Tidal). If Spotify is selected in settings, this will open the Spotify application and the album directly. 
+Since Tidal has (up until recently) been more closed regarding their API, I have not implemented the same integration, but instead opted for creating a URL that will open the Tidal website search, using the artist name and album name as search input. Not very elegant, but it sort of works.
+
+There is also a very simple game inside the application, where the user can invoke a puzzle game from the context menu on any of the albums in the list.
 
 ## Contribution
 Although I am very nervous about letting people see what I feel must be a mess of a project, I am welcoming the opportunity to let others potentially guide me and even contribute directly to the project. Please reach out, and don't be afraid to let me know just how much better something can be done! :-)
