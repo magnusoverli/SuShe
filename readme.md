@@ -17,9 +17,9 @@ Some sites and platforms have also been seen to use different dates for release.
 **I am not a developer!**
 **I can not code!**
 
-I understand just enough about coding to understand basic concepts and common pitfalls/challenges. I also barely know enough to ask an AI for the right thing. It has been a turbulent but effective partnership! :-)
-
 All code included in this repo is written by an AI tool on my order.
+I understand just enough about coding to understand basic concepts. I also barely know enough to ask an AI for the right thing. It has been a turbulent but effective partnership! :-)
+
 
 ## What SuShe does
 
