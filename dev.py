@@ -1266,7 +1266,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 with open(help_file_path, 'r', encoding='utf-8') as file:
                     markdown_text = file.read()
                     # Convert markdown to HTML
-                    import markdown
                     html_content = markdown.markdown(markdown_text)
                     # Display the HTML content in a HelpDialog
                     help_dialog = HelpDialog(html_content, self)
