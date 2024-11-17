@@ -1,39 +1,27 @@
-from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFileDialog, QComboBox, QItemDelegate, 
-                             QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
-                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle)
-from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QTextOption, QTextLayout, QPalette
+from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle)
+from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QPalette
 from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
 from datetime import datetime
 from pathlib import Path
 from PIL import Image, ImageQt
 from io import BytesIO
-from packaging import version
 import requests
 import logging
 import base64
 import random
-import markdown
 from functools import partial
 import os
 import io
-import tempfile
 import json
 import sys
-import asyncio
-import aiohttp
 import urllib.parse
 import subprocess
 
 def setup_logging():
     # Define the logs directory within the user's application data folder
     app_name = 'SuSheApp'
-    if sys.platform == 'win32':
-        log_dir = os.path.join(os.getenv('APPDATA'), app_name, 'logs')
-    elif sys.platform == 'darwin':
-        log_dir = os.path.join(os.path.expanduser('~/Library/Application Support/'), app_name, 'logs')
-    else:  # Linux and other Unix-like OSes
-        log_dir = os.path.join(os.path.expanduser('~'), '.SuSheApp', 'logs')
+    log_dir = os.path.join(os.getenv('APPDATA'), app_name, 'logs')
 
     os.makedirs(log_dir, exist_ok=True)  # Create the directory if it doesn't exist
 
@@ -1266,6 +1254,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 with open(help_file_path, 'r', encoding='utf-8') as file:
                     markdown_text = file.read()
                     # Convert markdown to HTML
+                    import markdown
                     html_content = markdown.markdown(markdown_text)
                     # Display the HTML content in a HelpDialog
                     help_dialog = HelpDialog(html_content, self)

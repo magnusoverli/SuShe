@@ -1,18 +1,17 @@
 
-Alternative metal
-Alternative rock
+Alternative Metal
+Alternative Rock
 Ambient
-AOR
+Aor
 Arabic Folk Music
-Art pop
-Art pop 
-Art rock
+Art Pop
+Art Rock
 Atmospheric Black Metal
 Atmospheric Sludge Metal
 Avant-Garde Metal
 Avant-Prog
 Beatdown Hardcore
-Black 'n Roll
+Black 'N Roll
 Black Metal
 Black Noise
 Blackened Crust
@@ -20,9 +19,9 @@ Blackgaze
 Brutal Death Metal
 Brutal Prog
 Celtic Metal
-Chamber folk
-Christian rock 
-Comedy rock
+Chamber Folk
+Christian Rock
+Comedy Rock
 Contemporary Folk
 Crack Rock Steady
 Crossover Thrash
@@ -32,7 +31,7 @@ Cybergrind
 D-Beat
 Dark Folk
 Dark Jazz
-Death 'n Roll
+Death 'N Roll
 Death Doom Metal
 Death Metal
 Deathcore
@@ -56,7 +55,7 @@ Folk
 Folk Metal
 Folk Rock
 Funeral Doom Metal
-Funk metal
+Funk Metal
 Garage Punk
 Glam Metal
 Glam Punk
@@ -67,7 +66,6 @@ Gothic Country
 Gothic Metal
 Gothic Rock
 Grindcore
-Groove metal
 Groove Metal
 Grunge
 Hard Rock
@@ -75,11 +73,10 @@ Hardcore
 Hardcore Punk
 Heartland Rock
 Heavy Metal
-Heavy psych
 Heavy Psych
-Horror punk
+Horror Punk
 Indie Rock
-Indigenous north american music
+Indigenous North American Music
 Industrial Metal
 Industrial Rock
 Japanese Hardcore
@@ -89,16 +86,17 @@ Melodic Black Metal
 Melodic Death Metal
 Melodic Hardcore
 Melodic Metalcore
+Metal Spoon
 Metalcore
 Mincecore
 Mittelalter-Metal
 Mittelalter-Rock
 Mongolian Music
-Neo-medieval folk 
+Neo-Medieval Folk
 Neoclassical Metal
 Neocrust
 Neofolk
-Neue Deutsche Härte
+Neue Deutsche H�Rte
 New York Hardcore
 Nintendocore
 Noise Core
@@ -106,7 +104,7 @@ Noise Rock
 Noisegrind
 Nordic Folk Rock
 Nu Metal
-NWOBHM
+Nwobhm
 Oi!
 Pagan Black Metal
 Pornogrind
@@ -121,13 +119,13 @@ Progressive Metal
 Progressive Rock
 Psycedelic Rock
 Rap Metal
-Rock opera
+Rock Opera
 Russian Orthodox Liturgical Music
 Sasscore
 Screamo
 Shitgaze
 Shoegaze
-Singer-songwriter
+Singer-Songwriter
 Skacore
 Slacker Rock
 Slam Death Metal
@@ -152,6 +150,6 @@ Thrash Metal
 Thrashcore
 Traditional Doom Metal
 Trance Metal
-US Power Metal
+Us Power Metal
 Viking Metal
 War Metal
