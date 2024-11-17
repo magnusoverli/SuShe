@@ -1601,8 +1601,20 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         layout.addStretch()
         self.settings_tab.setLayout(layout)
 
-    def save_application_settings(self):
-        preferred_music_player = self.preferred_music_player_combo.currentText()
+    def load_config_section(self, section_name):
+        config_path = resource_path('config.json')
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as file:
+                    config = json.load(file)
+                return config.get(section_name, {})
+            else:
+                return {}
+        except json.JSONDecodeError as e:
+            logging.error(f"Error parsing config.json: {e}")
+            return {}
+
+    def save_config_section(self, section_name, data):
         config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
@@ -1611,23 +1623,55 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             else:
                 config = {}
 
-            config['application'] = config.get('application', {})
-            config['application']['preferred_music_player'] = preferred_music_player
+            config[section_name] = data
 
             with open(config_path, 'w') as file:
                 json.dump(config, file, indent=4)
+            logging.info(f"{section_name.capitalize()} settings saved successfully.")
+        except Exception as e:
+            logging.error(f"Failed to save {section_name} settings: {e}")
+            raise e  # Re-raise exception for the calling method to handle
 
-            # Update the instance variable
+    def save_credentials(self):
+        spotify_settings = {
+            "client_id": self.client_id_input.text().strip(),
+            "client_secret": self.client_secret_input.text().strip()
+        }
+        try:
+            self.save_config_section('spotify', spotify_settings)
+            self.client_id = spotify_settings["client_id"]
+            self.client_secret = spotify_settings["client_secret"]
+            QMessageBox.information(self, "Success", "Spotify settings saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save Spotify settings. Details: {e}")
+
+    def save_telegram_settings(self):
+        telegram_settings = {
+            "bot_token": self.bot_token_input.text().strip(),
+            "chat_id": self.chat_id_input.text().strip(),
+            "message_thread_id": self.message_thread_id_input.text().strip()
+        }
+        try:
+            self.save_config_section('telegram', telegram_settings)
+            self.bot_token = telegram_settings["bot_token"]
+            self.chat_id = telegram_settings["chat_id"]
+            self.message_thread_id = telegram_settings["message_thread_id"]
+            QMessageBox.information(self, "Success", "Telegram settings saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save Telegram settings. Details: {e}")
+
+    def save_application_settings(self):
+        preferred_music_player = self.preferred_music_player_combo.currentText()
+        app_settings = {
+            "preferred_music_player": preferred_music_player
+        }
+        try:
+            self.save_config_section('application', app_settings)
             self.preferred_music_player = preferred_music_player
-
-            # Update the album links to reflect the new preferred music player
             self.update_album_links()
-
             QMessageBox.information(self, "Success", "Application settings saved successfully.")
-            logging.info("Application settings saved successfully.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save application settings. Details: {e}")
-            logging.error(f"Failed to save application settings: {e}")
 
     def update_album_links(self):
         for row in range(self.album_table.rowCount()):
@@ -1641,37 +1685,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 album_url = self.get_album_url(album_id, artist_name, album_name)
                 # Update the label's text
                 album_label.setText(f'<a href="{album_url}">{album_name}</a>')
-
-    def save_telegram_settings(self):
-        telegram_settings = {
-            "bot_token": self.bot_token_input.text().strip(),
-            "chat_id": self.chat_id_input.text().strip(),
-            "message_thread_id": self.message_thread_id_input.text().strip()
-        }
-
-        config_path = resource_path('config.json')
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as file:
-                    config = json.load(file)
-            else:
-                config = {}
-
-            config['telegram'] = telegram_settings
-
-            with open(config_path, 'w') as file:
-                json.dump(config, file, indent=4)
-
-            # Update instance variables immediately
-            self.bot_token = telegram_settings["bot_token"]
-            self.chat_id = telegram_settings["chat_id"]
-            self.message_thread_id = telegram_settings["message_thread_id"]
-
-            QMessageBox.information(self, "Success", "Telegram settings saved successfully.")
-            logging.info("Telegram settings saved successfully.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save Telegram settings. Details: {e}")
-            logging.error(f"Failed to save Telegram settings: {e}")
 
     def get_access_token(self):
         if not self.client_id or not self.client_secret:
@@ -1696,36 +1709,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to obtain access token: {e}")
             return None
-
-    def save_credentials(self):
-        spotify_settings = {
-            "spotify": {
-                "client_id": self.client_id_input.text().strip(),
-                "client_secret": self.client_secret_input.text().strip()
-            }
-        }
-        config_path = resource_path('config.json')
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as file:
-                    config = json.load(file)
-            else:
-                config = {}
-
-            config.update(spotify_settings)
-
-            with open(config_path, 'w') as file:
-                json.dump(config, file, indent=4)
-
-            # Update instance variables immediately
-            self.client_id = spotify_settings["spotify"]["client_id"]
-            self.client_secret = spotify_settings["spotify"]["client_secret"]
-
-            QMessageBox.information(self, "Success", "Spotify settings saved successfully.")
-            logging.info("Spotify settings saved successfully.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save Spotify settings. Details: {e}")
-            logging.error(f"Failed to save Spotify settings: {e}")
 
     def search_artist(self):
         artist_name = self.search_input.text().strip()
