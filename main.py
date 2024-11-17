@@ -2062,23 +2062,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.dataChanged = True
         self.update_window_title()
 
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        index = self.album_table.indexAt(event.pos())
-        
-        if event.button() == Qt.MouseButton.RightButton:
-            # Ensure the click was on a valid table row
-            if index.isValid():
-                context_menu = QMenu(self)
-                remove_action = context_menu.addAction("Remove Album")
-                action = context_menu.exec(event.globalPos())
-                
-                if action == remove_action:
-                    self.album_table.removeRow(index.row())
-        else:
-            if index.column() in [4, 5, 6]:  # These are the columns for 'Country', 'Genre 1', and 'Genre 2'
-                self.album_table.edit(index)
-
     def show_context_menu(self, position):
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
