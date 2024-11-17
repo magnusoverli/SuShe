@@ -62,6 +62,12 @@ def read_file_lines(filepath):
         logging.debug(f"Read {len(lines)} lines from {filepath}")
         return sorted(lines)
 
+def strip_html_tags(text):
+    import re
+    from html import unescape
+    clean = re.compile('<.*?>')
+    return unescape(re.sub(clean, '', text))
+
 class DownloadWorker(QObject):
     progress_changed = pyqtSignal(int)
     download_finished = pyqtSignal(str)
@@ -366,10 +372,6 @@ class Worker(QThread):
             logging.error(f"Error in worker thread: {e}")
             self.error.emit(e)
 
-def download_image(url):
-    response = requests.get(url)
-    response.raise_for_status()
-    return response.content
 
 def process_image_data(image_data, size=(200, 200)):
     image = Image.open(BytesIO(image_data))
@@ -623,7 +625,7 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                 # Handle QLabel cells (e.g., album names with hyperlinks)
                 widget = parent.cellWidget(index.row(), index.column())
                 if isinstance(widget, QLabel):
-                    data = self.strip_html_tags(widget.text())
+                    data = strip_html_tags(widget.text())
 
             if data:
                 data_lower = data.lower()
@@ -670,12 +672,6 @@ class SearchHighlightDelegate(QStyledItemDelegate):
             logging.error(f"Error in SearchHighlightDelegate.paint: {e}")
         finally:
             painter.restore()
-
-    def strip_html_tags(self, text):
-        import re
-        from html import unescape
-        clean = re.compile('<.*?>')
-        return unescape(re.sub(clean, '', text))
 
 class GenreSearchDelegate(QStyledItemDelegate):
     def __init__(self, items, parent=None, highlight_color=Qt.GlobalColor.cyan):
@@ -801,7 +797,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.chat_id = None
         self.message_thread_id = None
         self.dataChanged = False
-        self.credentials_path = self.resource_path('credentials.json')
+        self.credentials_path = resource_path('credentials.json')
 
         # Initialize search-related variables
         self.matches = []
@@ -853,7 +849,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Initialize genres and countries before setting up tabs
         self.genres = read_file_lines('genres.txt')
-        self.countries = read_file_lines(resource_path('countries.txt'))
+        self.countries = read_file_lines('countries.txt')
         
         self.setup_tabs()
 
@@ -885,7 +881,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.log_viewer_dialog.show()
 
     def load_config(self):
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as file:
@@ -1067,7 +1063,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def get_app_version(self):
         try:
-            version_file = self.resource_path('version.txt')
+            version_file = resource_path('version.txt')
             logging.info(f"Looking for version file at: {version_file}")
             with open(version_file, 'r') as f:
                 version = f.read().strip()
@@ -1184,7 +1180,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 if item:
                     item_text = item.text().lower()
                 elif widget and isinstance(widget, QLabel):
-                    item_text = self.strip_html_tags(widget.text()).lower()
+                    item_text = strip_html_tags(widget.text()).lower()
 
                 if search_text in item_text:
                     self.matches.append((row, column))
@@ -1192,11 +1188,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.current_match_index = -1
         if self.matches:
             self.goto_next_match()
-
-    def strip_html_tags(self, text):
-        import re
-        clean = re.compile('<.*?>')
-        return re.sub(clean, '', text)
 
     def clear_search_highlights(self):
         for row in range(self.album_table.rowCount()):
@@ -1246,7 +1237,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.recent_files_menu.addAction(action)
 
     def show_help(self):
-        help_file_path = self.resource_path('help.md')
+        help_file_path = resource_path('help.md')
         if os.path.exists(help_file_path):
             try:
                 with open(help_file_path, 'r', encoding='utf-8') as file:
@@ -1382,16 +1373,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             os.makedirs(app_data_dir)  # Ensure directory is created
 
         return os.path.join(app_data_dir, filename)
-
-    def resource_path(self, relative_path):
-        """ Convert relative resource paths to absolute paths for PyInstaller """
-        try:
-            # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(os.path.dirname(__file__))
-
-        return os.path.join(base_path, relative_path)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():  # Check if the drag event contains URLs
@@ -1623,7 +1604,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def save_application_settings(self):
         preferred_music_player = self.preferred_music_player_combo.currentText()
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as file:
@@ -1669,7 +1650,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             "message_thread_id": self.message_thread_id_input.text().strip()
         }
 
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as file:
@@ -1717,21 +1698,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.error(f"Failed to obtain access token: {e}")
             return None
 
-    def fetch_from_spotify(self, url, params=None):
-        access_token = self.get_access_token()
-        if not access_token:
-            return {"error": "Failed to obtain access token"}
-
-        headers = {"Authorization": f"Bearer {access_token}"}
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching data from Spotify: {e}")
-            return {"error": str(e)}
-
-
     def save_credentials(self):
         spotify_settings = {
             "spotify": {
@@ -1739,7 +1705,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "client_secret": self.client_secret_input.text().strip()
             }
         }
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as file:
@@ -1809,17 +1775,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to search for artist {artist_name}: {e}")
             return {"error": str(e)}
-
-
-    def retrieve_albums(self, artist_id):
-        access_token = self.get_access_token()
-        if access_token:
-            url = f"https://api.spotify.com/v1/artists/{artist_id}/albums"
-            headers = {"Authorization": f"Bearer {access_token}"}
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                return response.json()['items']
-        return []
 
     def on_artists_fetched(self, result):
         QApplication.restoreOverrideCursor()
@@ -2165,7 +2120,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def trigger_save_album_data(self):
         if self.current_file_path:
-            points_mapping = self.read_points_mapping(self.resource_path("points.json"))
+            points_mapping = self.read_points_mapping(resource_path("points.json"))
             if not points_mapping:
                 QMessageBox.warning(self, "Points Mapping Issue", "points.json is missing or invalid. Default points will be used.")
             self.save_album_data(self.current_file_path, points_mapping)
@@ -2187,7 +2142,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if file_path:
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'
-            points_mapping = self.read_points_mapping(self.resource_path("points.json"))
+            points_mapping = self.read_points_mapping(resource_path("points.json"))
             self.save_album_data(file_path, points_mapping)
             self.current_file_path = file_path
             self.dataChanged = False

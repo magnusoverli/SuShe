@@ -1,39 +1,25 @@
-from PyQt6.QtWidgets import (QGridLayout, QDialog, QMenu, QGroupBox, QFrame, QFileDialog, QComboBox, QItemDelegate, 
-                             QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QAbstractItemDelegate,
-                             QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle)
-from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDrag, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QTextOption, QTextLayout, QPalette
-from PyQt6.QtCore import Qt, QMimeData, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
+from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle)
+from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QPalette
+from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
 from datetime import datetime
 from pathlib import Path
-from PIL import Image, ImageQt
+from PIL import Image
 from io import BytesIO
-from packaging import version
 import requests
 import logging
 import base64
-import random
-import markdown
 from functools import partial
 import os
-import io
-import tempfile
 import json
 import sys
-import asyncio
-import aiohttp
 import urllib.parse
 import subprocess
 
 def setup_logging():
     # Define the logs directory within the user's application data folder
     app_name = 'SuSheApp'
-    if sys.platform == 'win32':
-        log_dir = os.path.join(os.getenv('APPDATA'), app_name, 'logs')
-    elif sys.platform == 'darwin':
-        log_dir = os.path.join(os.path.expanduser('~/Library/Application Support/'), app_name, 'logs')
-    else:  # Linux and other Unix-like OSes
-        log_dir = os.path.join(os.path.expanduser('~'), '.SuSheApp', 'logs')
+    log_dir = os.path.join(os.getenv('APPDATA'), app_name, 'logs')
 
     os.makedirs(log_dir, exist_ok=True)  # Create the directory if it doesn't exist
 
@@ -75,6 +61,12 @@ def read_file_lines(filepath):
             lines = {line.title() for line in lines}
         logging.debug(f"Read {len(lines)} lines from {filepath}")
         return sorted(lines)
+
+def strip_html_tags(text):
+    import re
+    from html import unescape
+    clean = re.compile('<.*?>')
+    return unescape(re.sub(clean, '', text))
 
 class DownloadWorker(QObject):
     progress_changed = pyqtSignal(int)
@@ -380,10 +372,6 @@ class Worker(QThread):
             logging.error(f"Error in worker thread: {e}")
             self.error.emit(e)
 
-def download_image(url):
-    response = requests.get(url)
-    response.raise_for_status()
-    return response.content
 
 def process_image_data(image_data, size=(200, 200)):
     image = Image.open(BytesIO(image_data))
@@ -637,7 +625,7 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                 # Handle QLabel cells (e.g., album names with hyperlinks)
                 widget = parent.cellWidget(index.row(), index.column())
                 if isinstance(widget, QLabel):
-                    data = self.strip_html_tags(widget.text())
+                    data = strip_html_tags(widget.text())
 
             if data:
                 data_lower = data.lower()
@@ -684,12 +672,6 @@ class SearchHighlightDelegate(QStyledItemDelegate):
             logging.error(f"Error in SearchHighlightDelegate.paint: {e}")
         finally:
             painter.restore()
-
-    def strip_html_tags(self, text):
-        import re
-        from html import unescape
-        clean = re.compile('<.*?>')
-        return unescape(re.sub(clean, '', text))
 
 class GenreSearchDelegate(QStyledItemDelegate):
     def __init__(self, items, parent=None, highlight_color=Qt.GlobalColor.cyan):
@@ -815,7 +797,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.chat_id = None
         self.message_thread_id = None
         self.dataChanged = False
-        self.credentials_path = self.resource_path('credentials.json')
+        self.credentials_path = resource_path('credentials.json')
 
         # Initialize search-related variables
         self.matches = []
@@ -867,7 +849,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Initialize genres and countries before setting up tabs
         self.genres = read_file_lines('genres.txt')
-        self.countries = read_file_lines(resource_path('countries.txt'))
+        self.countries = read_file_lines('countries.txt')
         
         self.setup_tabs()
 
@@ -899,7 +881,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.log_viewer_dialog.show()
 
     def load_config(self):
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as file:
@@ -1081,7 +1063,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def get_app_version(self):
         try:
-            version_file = self.resource_path('version.txt')
+            version_file = resource_path('version.txt')
             logging.info(f"Looking for version file at: {version_file}")
             with open(version_file, 'r') as f:
                 version = f.read().strip()
@@ -1198,7 +1180,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 if item:
                     item_text = item.text().lower()
                 elif widget and isinstance(widget, QLabel):
-                    item_text = self.strip_html_tags(widget.text()).lower()
+                    item_text = strip_html_tags(widget.text()).lower()
 
                 if search_text in item_text:
                     self.matches.append((row, column))
@@ -1206,11 +1188,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.current_match_index = -1
         if self.matches:
             self.goto_next_match()
-
-    def strip_html_tags(self, text):
-        import re
-        clean = re.compile('<.*?>')
-        return re.sub(clean, '', text)
 
     def clear_search_highlights(self):
         for row in range(self.album_table.rowCount()):
@@ -1260,7 +1237,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.recent_files_menu.addAction(action)
 
     def show_help(self):
-        help_file_path = self.resource_path('help.md')
+        help_file_path = resource_path('help.md')
         if os.path.exists(help_file_path):
             try:
                 with open(help_file_path, 'r', encoding='utf-8') as file:
@@ -1396,16 +1373,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             os.makedirs(app_data_dir)  # Ensure directory is created
 
         return os.path.join(app_data_dir, filename)
-
-    def resource_path(self, relative_path):
-        """ Convert relative resource paths to absolute paths for PyInstaller """
-        try:
-            # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(os.path.dirname(__file__))
-
-        return os.path.join(base_path, relative_path)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():  # Check if the drag event contains URLs
@@ -1637,7 +1604,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def save_application_settings(self):
         preferred_music_player = self.preferred_music_player_combo.currentText()
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as file:
@@ -1683,7 +1650,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             "message_thread_id": self.message_thread_id_input.text().strip()
         }
 
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as file:
@@ -1731,21 +1698,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.error(f"Failed to obtain access token: {e}")
             return None
 
-    def fetch_from_spotify(self, url, params=None):
-        access_token = self.get_access_token()
-        if not access_token:
-            return {"error": "Failed to obtain access token"}
-
-        headers = {"Authorization": f"Bearer {access_token}"}
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching data from Spotify: {e}")
-            return {"error": str(e)}
-
-
     def save_credentials(self):
         spotify_settings = {
             "spotify": {
@@ -1753,7 +1705,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "client_secret": self.client_secret_input.text().strip()
             }
         }
-        config_path = self.resource_path('config.json')
+        config_path = resource_path('config.json')
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r') as file:
@@ -1823,17 +1775,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to search for artist {artist_name}: {e}")
             return {"error": str(e)}
-
-
-    def retrieve_albums(self, artist_id):
-        access_token = self.get_access_token()
-        if access_token:
-            url = f"https://api.spotify.com/v1/artists/{artist_id}/albums"
-            headers = {"Authorization": f"Bearer {access_token}"}
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                return response.json()['items']
-        return []
 
     def on_artists_fetched(self, result):
         QApplication.restoreOverrideCursor()
@@ -2155,43 +2096,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def show_context_menu(self, position):
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
-        play_puzzle_action = context_menu.addAction("Play Puzzle Game")  # Add puzzle game option
         action = context_menu.exec(self.album_table.viewport().mapToGlobal(position))
 
         if action == remove_action:
             index = self.album_table.indexAt(position)
             if index.isValid():
                 self.remove_album(index.row())
-        elif action == play_puzzle_action:
-            logging.info("Play Puzzle Game selected from context menu")
-            index = self.album_table.indexAt(position)
-            if index.isValid():
-                self.launch_puzzle_game(index.row())
-
-    def launch_puzzle_game(self, row):
-        cover_item = self.album_table.item(row, 3)
-        if cover_item is None:
-            QMessageBox.warning(self, "Puzzle Game", "No album cover available for the puzzle game.")
-            logging.warning("No album cover available for the puzzle game.")
-            return
-
-        icon = cover_item.icon()
-        pixmap_size = icon.actualSize(QSize(200, 200))
-        pixmap = icon.pixmap(pixmap_size)
-
-        buffer = QBuffer()
-        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        pixmap.save(buffer, "PNG")
-        pil_image = Image.open(io.BytesIO(buffer.data()))
-        
-        logging.info(f"Launching puzzle game for album at row {row}")
-        self.prepare_and_launch_puzzle(pil_image)
-
-    def prepare_and_launch_puzzle(self, image):
-        logging.info("Preparing and launching puzzle")
-        self.puzzle_game = PuzzleGame(image)
-        self.puzzle_game.show()
-
 
     def remove_album(self, row):
         # Verify if the row is within valid range before attempting to remove
@@ -2210,7 +2120,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def trigger_save_album_data(self):
         if self.current_file_path:
-            points_mapping = self.read_points_mapping(self.resource_path("points.json"))
+            points_mapping = self.read_points_mapping(resource_path("points.json"))
             if not points_mapping:
                 QMessageBox.warning(self, "Points Mapping Issue", "points.json is missing or invalid. Default points will be used.")
             self.save_album_data(self.current_file_path, points_mapping)
@@ -2232,7 +2142,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if file_path:
             if not file_path.lower().endswith('.json'):
                 file_path += '.json'
-            points_mapping = self.read_points_mapping(self.resource_path("points.json"))
+            points_mapping = self.read_points_mapping(resource_path("points.json"))
             self.save_album_data(file_path, points_mapping)
             self.current_file_path = file_path
             self.dataChanged = False
@@ -2517,118 +2427,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
-
-class PuzzleGame(QDialog):
-    def __init__(self, image, parent=None):
-        super().__init__(parent)
-        self.image = image.convert("RGBA")
-        self.grid_layout = QGridLayout(self)
-        self.grid_layout.setSpacing(0)
-        self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.grid_layout)
-        self.labels = []  # Store DraggableLabel instances
-        self.positions = {}  # Track positions of labels in the grid
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle("Puzzle Game")
-        self.setFixedSize(600, 600)  # Adjust based on your preference
-        self.split_image_into_pieces()
-
-    def split_image_into_pieces(self):
-        img_width, img_height = self.image.size
-        piece_width = img_width // 4  # Assuming a 4x4 puzzle
-        piece_height = img_height // 4
-
-        pieces = []
-        for i in range(4):  # For each row
-            for j in range(4):  # For each column
-                left = j * piece_width
-                upper = i * piece_height
-                right = left + piece_width
-                lower = upper + piece_height
-                piece = self.image.crop((left, upper, right, lower))
-                pieces.append((piece, i * 4 + j))  # Append piece and its correct position
-
-        random.shuffle(pieces)
-
-        for i, (piece, correct_pos) in enumerate(pieces):
-            qt_image = ImageQt.ImageQt(piece)
-            pixmap = QPixmap.fromImage(qt_image)
-            scaled_pixmap = pixmap.scaled(self.width() // 4 - self.grid_layout.spacing() * 2, 
-                                          self.height() // 4 - self.grid_layout.spacing() * 2, 
-                                          Qt.AspectRatioMode.KeepAspectRatio, 
-                                          Qt.TransformationMode.SmoothTransformation)
-
-            label = DraggableLabel(scaled_pixmap, correct_pos, self)
-            self.labels.append(label)  # Add the label to the labels list
-            row, col = divmod(i, 4)
-            self.grid_layout.addWidget(label, row, col)
-            self.positions[label] = (row, col)
-
-    def swap_pieces(self, source_index, target_index):
-        # Assuming source_index and target_index are the positions of the pieces being swapped
-        source_label = self.labels[source_index]
-        target_label = self.labels[target_index]
-
-        # Swap their positions in the tracking list
-        self.labels[source_index], self.labels[target_index] = self.labels[target_index], self.labels[source_index]
-
-        # Update grid layout and positions
-        source_pos = self.positions[source_label]
-        target_pos = self.positions[target_label]
-        self.grid_layout.addWidget(source_label, *target_pos)
-        self.grid_layout.addWidget(target_label, *source_pos)
-        self.positions[source_label], self.positions[target_label] = target_pos, source_pos
-
-        self.update_positions()
-        self.check_solution()
-
-    def update_positions(self):
-        for label in self.labels:
-            row, col = self.positions[label]
-            label.current_position = row * 4 + col  # Update current position based on grid position
-
-    def check_solution(self):
-        if all(label.current_position == label.correct_position for label in self.labels):
-            logging.info("Puzzle game completed successfully")
-            QMessageBox.information(self, "Puzzle Completed", "Congratulations! You've successfully completed the puzzle.")
-        else:
-            logging.debug("Puzzle not yet solved.")
-
-
-class DraggableLabel(QLabel):
-    def __init__(self, pixmap, correct_position, parent=None):
-        super().__init__(parent)
-        self.setPixmap(pixmap)
-        self.correct_position = correct_position
-        self.current_position = correct_position  # Initially, the same as correct_position
-        self.setAcceptDrops(True)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            drag = QDrag(self)
-            mimeData = QMimeData()
-            drag.setMimeData(mimeData)
-            pixmap = self.pixmap()
-            drag.setPixmap(pixmap)
-            hotSpot = event.position().toPoint() - self.rect().topLeft()
-            drag.setHotSpot(hotSpot)
-            drag.exec(Qt.DropAction.MoveAction)
-
-    def dragEnterEvent(self, event):
-        if event.source() != self:  # Accept drag only from different sources
-            event.accept()
-
-    def dropEvent(self, event):
-        source = event.source()
-        if source != self:
-            # Find indexes of source and target
-            source_index = self.parent().labels.index(source)
-            target_index = self.parent().labels.index(self)
-            # Swap pieces using the identified indexes
-            self.parent().swap_pieces(source_index, target_index)
-            event.acceptProposedAction()
 
 if __name__ == "__main__":
     print("Starting application...")
