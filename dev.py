@@ -2143,43 +2143,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def show_context_menu(self, position):
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
-        play_puzzle_action = context_menu.addAction("Play Puzzle Game")  # Add puzzle game option
         action = context_menu.exec(self.album_table.viewport().mapToGlobal(position))
 
         if action == remove_action:
             index = self.album_table.indexAt(position)
             if index.isValid():
                 self.remove_album(index.row())
-        elif action == play_puzzle_action:
-            logging.info("Play Puzzle Game selected from context menu")
-            index = self.album_table.indexAt(position)
-            if index.isValid():
-                self.launch_puzzle_game(index.row())
-
-    def launch_puzzle_game(self, row):
-        cover_item = self.album_table.item(row, 3)
-        if cover_item is None:
-            QMessageBox.warning(self, "Puzzle Game", "No album cover available for the puzzle game.")
-            logging.warning("No album cover available for the puzzle game.")
-            return
-
-        icon = cover_item.icon()
-        pixmap_size = icon.actualSize(QSize(200, 200))
-        pixmap = icon.pixmap(pixmap_size)
-
-        buffer = QBuffer()
-        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        pixmap.save(buffer, "PNG")
-        pil_image = Image.open(io.BytesIO(buffer.data()))
-        
-        logging.info(f"Launching puzzle game for album at row {row}")
-        self.prepare_and_launch_puzzle(pil_image)
-
-    def prepare_and_launch_puzzle(self, image):
-        logging.info("Preparing and launching puzzle")
-        self.puzzle_game = PuzzleGame(image)
-        self.puzzle_game.show()
-
 
     def remove_album(self, row):
         # Verify if the row is within valid range before attempting to remove
@@ -2505,118 +2474,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
-
-class PuzzleGame(QDialog):
-    def __init__(self, image, parent=None):
-        super().__init__(parent)
-        self.image = image.convert("RGBA")
-        self.grid_layout = QGridLayout(self)
-        self.grid_layout.setSpacing(0)
-        self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.grid_layout)
-        self.labels = []  # Store DraggableLabel instances
-        self.positions = {}  # Track positions of labels in the grid
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle("Puzzle Game")
-        self.setFixedSize(600, 600)  # Adjust based on your preference
-        self.split_image_into_pieces()
-
-    def split_image_into_pieces(self):
-        img_width, img_height = self.image.size
-        piece_width = img_width // 4  # Assuming a 4x4 puzzle
-        piece_height = img_height // 4
-
-        pieces = []
-        for i in range(4):  # For each row
-            for j in range(4):  # For each column
-                left = j * piece_width
-                upper = i * piece_height
-                right = left + piece_width
-                lower = upper + piece_height
-                piece = self.image.crop((left, upper, right, lower))
-                pieces.append((piece, i * 4 + j))  # Append piece and its correct position
-
-        random.shuffle(pieces)
-
-        for i, (piece, correct_pos) in enumerate(pieces):
-            qt_image = ImageQt.ImageQt(piece)
-            pixmap = QPixmap.fromImage(qt_image)
-            scaled_pixmap = pixmap.scaled(self.width() // 4 - self.grid_layout.spacing() * 2, 
-                                          self.height() // 4 - self.grid_layout.spacing() * 2, 
-                                          Qt.AspectRatioMode.KeepAspectRatio, 
-                                          Qt.TransformationMode.SmoothTransformation)
-
-            label = DraggableLabel(scaled_pixmap, correct_pos, self)
-            self.labels.append(label)  # Add the label to the labels list
-            row, col = divmod(i, 4)
-            self.grid_layout.addWidget(label, row, col)
-            self.positions[label] = (row, col)
-
-    def swap_pieces(self, source_index, target_index):
-        # Assuming source_index and target_index are the positions of the pieces being swapped
-        source_label = self.labels[source_index]
-        target_label = self.labels[target_index]
-
-        # Swap their positions in the tracking list
-        self.labels[source_index], self.labels[target_index] = self.labels[target_index], self.labels[source_index]
-
-        # Update grid layout and positions
-        source_pos = self.positions[source_label]
-        target_pos = self.positions[target_label]
-        self.grid_layout.addWidget(source_label, *target_pos)
-        self.grid_layout.addWidget(target_label, *source_pos)
-        self.positions[source_label], self.positions[target_label] = target_pos, source_pos
-
-        self.update_positions()
-        self.check_solution()
-
-    def update_positions(self):
-        for label in self.labels:
-            row, col = self.positions[label]
-            label.current_position = row * 4 + col  # Update current position based on grid position
-
-    def check_solution(self):
-        if all(label.current_position == label.correct_position for label in self.labels):
-            logging.info("Puzzle game completed successfully")
-            QMessageBox.information(self, "Puzzle Completed", "Congratulations! You've successfully completed the puzzle.")
-        else:
-            logging.debug("Puzzle not yet solved.")
-
-
-class DraggableLabel(QLabel):
-    def __init__(self, pixmap, correct_position, parent=None):
-        super().__init__(parent)
-        self.setPixmap(pixmap)
-        self.correct_position = correct_position
-        self.current_position = correct_position  # Initially, the same as correct_position
-        self.setAcceptDrops(True)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            drag = QDrag(self)
-            mimeData = QMimeData()
-            drag.setMimeData(mimeData)
-            pixmap = self.pixmap()
-            drag.setPixmap(pixmap)
-            hotSpot = event.position().toPoint() - self.rect().topLeft()
-            drag.setHotSpot(hotSpot)
-            drag.exec(Qt.DropAction.MoveAction)
-
-    def dragEnterEvent(self, event):
-        if event.source() != self:  # Accept drag only from different sources
-            event.accept()
-
-    def dropEvent(self, event):
-        source = event.source()
-        if source != self:
-            # Find indexes of source and target
-            source_index = self.parent().labels.index(source)
-            target_index = self.parent().labels.index(self)
-            # Swap pieces using the identified indexes
-            self.parent().swap_pieces(source_index, target_index)
-            event.acceptProposedAction()
 
 if __name__ == "__main__":
     print("Starting application...")
