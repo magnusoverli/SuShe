@@ -797,7 +797,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.chat_id = None
         self.message_thread_id = None
         self.dataChanged = False
-        self.credentials_path = resource_path('credentials.json')
 
         # Initialize search-related variables
         self.matches = []
@@ -1728,19 +1727,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to save Spotify settings. Details: {e}")
             logging.error(f"Failed to save Spotify settings: {e}")
 
-    def load_credentials(self):
-        # Adjust this method to correctly set self.client_id and self.client_secret
-        try:
-            with open(self.credentials_path, 'r') as file:
-                credentials = json.load(file)
-                self.client_id = credentials.get('client_id', '')
-                self.client_secret = credentials.get('client_secret', '')
-                # If using QLineEdit in your UI for displaying, ensure to also update them
-                self.client_id_input.setText(self.client_id)
-                self.client_secret_input.setText(self.client_secret)
-        except Exception as e:
-            logging.error(f"Failed to load credentials: {e}")
-
     def search_artist(self):
         artist_name = self.search_input.text().strip()
         if not artist_name:
@@ -2075,23 +2061,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             print("Failed to fetch track details")
         self.dataChanged = True
         self.update_window_title()
-
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        index = self.album_table.indexAt(event.pos())
-        
-        if event.button() == Qt.MouseButton.RightButton:
-            # Ensure the click was on a valid table row
-            if index.isValid():
-                context_menu = QMenu(self)
-                remove_action = context_menu.addAction("Remove Album")
-                action = context_menu.exec(event.globalPos())
-                
-                if action == remove_action:
-                    self.album_table.removeRow(index.row())
-        else:
-            if index.column() in [4, 5, 6]:  # These are the columns for 'Country', 'Genre 1', and 'Genre 2'
-                self.album_table.edit(index)
 
     def show_context_menu(self, position):
         context_menu = QMenu(self)

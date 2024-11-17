@@ -797,7 +797,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.chat_id = None
         self.message_thread_id = None
         self.dataChanged = False
-        self.credentials_path = resource_path('credentials.json')
 
         # Initialize search-related variables
         self.matches = []
@@ -1727,19 +1726,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save Spotify settings. Details: {e}")
             logging.error(f"Failed to save Spotify settings: {e}")
-
-    def load_credentials(self):
-        # Adjust this method to correctly set self.client_id and self.client_secret
-        try:
-            with open(self.credentials_path, 'r') as file:
-                credentials = json.load(file)
-                self.client_id = credentials.get('client_id', '')
-                self.client_secret = credentials.get('client_secret', '')
-                # If using QLineEdit in your UI for displaying, ensure to also update them
-                self.client_id_input.setText(self.client_id)
-                self.client_secret_input.setText(self.client_secret)
-        except Exception as e:
-            logging.error(f"Failed to load credentials: {e}")
 
     def search_artist(self):
         artist_name = self.search_input.text().strip()
