@@ -27,12 +27,9 @@ datas = [
 
 # List of hidden imports that PyInstaller might miss
 hiddenimports = [
-    'aiohttp',
-    'PyQt6.QtWidgets',
-    'PyQt6.QtGui',
-    'PyQt6.QtCore',
-    'requests',
-    'PIL',
+#    'tempfile',           # Added because it's imported inside a function
+#    'requests',           # Keep if PyInstaller misses it
+#    'PIL',                # Keep if PyInstaller misses it
 ]
 
 # Analysis configuration
