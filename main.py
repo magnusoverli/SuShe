@@ -1,15 +1,25 @@
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, QTextEdit,
-                             QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle, QHeaderView)
+                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, 
+                             QProgressDialog, QCompleter, QAbstractItemView, QStyle, QHeaderView)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QPalette
-from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
+from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
+from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog
+from image_handler import ImageWidget, encode_image_to_base64, decode_base64_to_pixmap, process_image_data
+from dialogs import (
+    SubmitDialog, HelpDialog, LogViewerDialog, ManualAddAlbumDialog, UpdateDialog
+)
+from workers import DownloadWorker, SubmitWorker, Worker
+from delegates import (
+    ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, RatingDelegate
+)
+from utils import resource_path, read_file_lines, strip_html_tags
+from logging_setup import QTextEditLogger
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
 from io import BytesIO
 import requests
 import logging
-import base64
 from functools import partial
 from io import BytesIO
 import os
@@ -70,212 +80,6 @@ def strip_html_tags(text):
     clean = re.compile('<.*?>')
     return unescape(re.sub(clean, '', text))
 
-class DownloadWorker(QObject):
-    progress_changed = pyqtSignal(int)
-    download_finished = pyqtSignal(str)
-    download_failed = pyqtSignal(str)
-
-    def __init__(self, download_url, github_token):
-        super().__init__()
-        self.download_url = download_url
-        self.github_token = github_token
-        self.is_cancelled = False
-
-    def start_download(self):
-        import tempfile
-        try:
-            headers = {
-                "Authorization": f"token {self.github_token}",
-                "Accept": "application/octet-stream",
-            }
-            logging.debug(f"Starting download from URL: {self.download_url}")
-            response = requests.get(self.download_url, headers=headers, stream=True)
-            if response.status_code != 200:
-                logging.error(f"Failed to download update. HTTP status code: {response.status_code}")
-                self.download_failed.emit(f"Failed to download update. HTTP status code: {response.status_code}")
-                return
-
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded_size = 0
-            chunk_size = 8192  # 8 KB
-
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".exe")
-            with open(temp_file.name, 'wb') as f:
-                for chunk in response.iter_content(chunk_size):
-                    if self.is_cancelled:
-                        logging.info("Update download canceled.")
-                        temp_file.close()
-                        os.unlink(temp_file.name)
-                        return
-                    if chunk:
-                        f.write(chunk)
-                        downloaded_size += len(chunk)
-                        progress = int(downloaded_size * 100 / total_size) if total_size else 0
-                        self.progress_changed.emit(progress)
-            logging.info("Update downloaded successfully.")
-            self.download_finished.emit(temp_file.name)
-        except Exception as e:
-            logging.error(f"Failed to download update: {e}")
-            self.download_failed.emit(str(e))
-
-class QTextEditLogger(logging.Handler, QObject):
-    log_signal = pyqtSignal(str)
-
-    def __init__(self):
-        QObject.__init__(self)
-        logging.Handler.__init__(self)
-        self.log_viewer = None
-        self.buffer = []  # Buffer to store log messages before log_viewer is set
-        self.log_signal.connect(self._append_log)
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.buffer.append(msg)
-        self.log_signal.emit(msg)
-
-    def _append_log(self, msg):
-        if self.log_viewer:
-            self.log_viewer.append_log(msg)
-
-    def set_log_viewer(self, log_viewer):
-        self.log_viewer = log_viewer
-        # Flush the buffered messages to the log viewer
-        for msg in self.buffer:
-            self.log_viewer.append_log(msg)
-        self.buffer.clear()
-
-class LogViewerDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Live Log Viewer")
-        self.resize(800, 600)
-        layout = QVBoxLayout()
-        self.log_text_edit = QTextEdit(self)
-        self.log_text_edit.setReadOnly(True)
-        # Set dark background and light text
-        self.log_text_edit.setStyleSheet("background-color: #2D2D30; color: white;")
-        layout.addWidget(self.log_text_edit)
-        self.setLayout(layout)
-
-    def append_log(self, message):
-        self.log_text_edit.append(message)
-
-class SubmitWorker(QThread):
-    submission_finished = pyqtSignal(bool, str)  # Signal to emit the result
-
-    def __init__(self, bot_token, chat_id, message_thread_id, file_path, caption):
-        super().__init__()
-        self.bot_token = bot_token
-        self.chat_id = chat_id
-        self.message_thread_id = message_thread_id
-        self.file_path = file_path
-        self.caption = caption  # New attribute for the caption
-
-    def run(self):
-        url = f"https://api.telegram.org/bot{self.bot_token}/sendDocument"
-        try:
-            with open(self.file_path, 'rb') as file:
-                files = {'document': (Path(self.file_path).name, file)}
-                data = {
-                    'chat_id': self.chat_id,
-                    'message_thread_id': int(self.message_thread_id),  # Ensure it's an integer
-                    'caption': self.caption  # Include the caption in the data
-                }
-                
-                logging.info(f"Submitting file {self.file_path} to Telegram with caption: {self.caption}")
-                response = requests.post(url, files=files, data=data)
-                response.raise_for_status()
-                logging.info(f"File {self.file_path} submitted successfully")
-                self.submission_finished.emit(True, "File submitted successfully.")
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to submit file {self.file_path}: {e}")
-            error_info = ""
-            try:
-                error_info = response.json().get('description', 'No error description provided.')
-            except:
-                error_info = str(e)
-            self.submission_finished.emit(False, error_info)
-        except ValueError as ve:
-            logging.error(f"Invalid message_thread_id: {self.message_thread_id}. It must be an integer.")
-            self.submission_finished.emit(False, "Invalid message_thread_id. It must be an integer.")
-        except Exception as e:
-            logging.error(f"An unexpected error occurred while submitting the file: {e}")
-            self.submission_finished.emit(False, f"An unexpected error occurred: {e}")
-
-class SubmitDialog(QDialog):
-    """
-    Dialog window to handle the submission of album data to Telegram.
-    """
-    submission_finished = pyqtSignal(bool, str)  # Signal to indicate submission status
-
-    def __init__(self, bot_token, chat_id, message_thread_id, file_path, parent=None):
-        super().__init__(parent)
-        self.bot_token = bot_token
-        self.chat_id = chat_id
-        self.message_thread_id = message_thread_id
-        self.file_path = file_path  # Store the current file path
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle("Submit to Telegram")
-        layout = QVBoxLayout()
-
-        self.nameEdit = QLineEdit(self)
-        self.nameEdit.setPlaceholderText("Enter your name here")
-        layout.addWidget(self.nameEdit)
-
-        self.submitBtn = QPushButton("Submit", self)
-        self.submitBtn.clicked.connect(self.onSubmit)
-        layout.addWidget(self.submitBtn)
-
-        self.progress_label = QLabel("", self)
-        layout.addWidget(self.progress_label)
-
-        self.setLayout(layout)
-
-    def onSubmit(self):
-        name = self.nameEdit.text().strip()
-        if not name:
-            QMessageBox.warning(self, "Error", "Please enter your name before submitting.")
-            logging.warning("Submission attempted without a name")
-            return
-
-        if not self.file_path or not os.path.exists(self.file_path):
-            QMessageBox.warning(self, "Error", "No valid file is currently open for submission.")
-            logging.warning("Submission attempted without a valid open file")
-            return
-
-        self.submitBtn.setEnabled(False)  # Disable the button to prevent multiple submissions
-        self.progress_label.setText("Submitting... Please wait.")
-        logging.info(f"User '{name}' is submitting file '{self.file_path}' to Telegram")
-
-        # Compose the caption message
-        caption_message = f"Here is the list from {name}."
-
-
-        # Start a worker thread for submission
-        self.worker = SubmitWorker(
-            self.bot_token,
-            self.chat_id,
-            self.message_thread_id,
-            self.file_path,
-            caption_message  # Pass the caption to the worker
-        )
-        self.worker.submission_finished.connect(self.onSubmissionFinished)
-        self.worker.start()
-
-    def onSubmissionFinished(self, success, message):
-        self.submitBtn.setEnabled(True)  # Re-enable the button
-        self.progress_label.setText("")  # Clear the progress label
-
-        if success:
-            QMessageBox.information(self, "Success", "File submitted successfully.")
-            logging.info(f"File {self.file_path} submitted successfully")
-            self.accept()  # Close the dialog
-        else:
-            QMessageBox.critical(self, "Failed", f"File submission failed. Details: {message}")
-            logging.error(f"Failed to submit file {self.file_path}: {message}")
-
 class CustomDoubleSpinBox(QDoubleSpinBox):
     def keyPressEvent(self, event):
         if event.text() == ',':
@@ -291,94 +95,6 @@ class CustomDoubleSpinBox(QDoubleSpinBox):
             super().keyPressEvent(new_event)
         else:
             super().keyPressEvent(event)
-
-class ComboBoxDelegate(QStyledItemDelegate):
-    def __init__(self, items, parent=None):
-        super().__init__(parent)
-        self.items = items
-
-    def createEditor(self, parent, option, index):
-        comboBox = QComboBox(parent)
-        comboBox.setEditable(True)
-        comboBox.addItems(self.items)
-        comboBox.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-
-        # Create the completer and set it to be case insensitive
-        completer = QCompleter(self.items, comboBox)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        comboBox.setCompleter(completer)
-
-        # Apply the dark background style to the completer popup
-        completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
-        comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
-
-        # Connect the 'currentIndexChanged' signal to commit data and close editor
-        comboBox.currentIndexChanged.connect(partial(self.commitAndClose, comboBox))
-
-        # Initialize the current text
-        current_value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
-        if current_value in self.items:
-            comboBox.setCurrentIndex(self.items.index(current_value))
-        else:
-            comboBox.setCurrentIndex(-1)
-
-        return comboBox
-
-    def commitAndClose(self, editor):
-        """
-        Commit the data from the editor to the model and close the editor.
-        """
-        self.commitData.emit(editor)
-        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-
-    def setEditorData(self, editor, index):
-        value = index.model().data(index, Qt.ItemDataRole.EditRole)
-        idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
-        editor.setCurrentIndex(idx if idx >= 0 else -1)
-
-    def setModelData(self, editor, model, index):
-        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
-
-    def updateEditorGeometry(self, editor, option, index):
-        editor.setGeometry(option.rect)
-
-class HelpDialog(QDialog):
-    def __init__(self, html_content, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Help")
-        self.resize(800, 600)
-        layout = QVBoxLayout()
-        self.text_browser = QTextBrowser(self)
-        self.text_browser.setReadOnly(True)
-        self.text_browser.setHtml(html_content)
-        self.text_browser.setOpenExternalLinks(True)  # Enable opening links in external browser
-        layout.addWidget(self.text_browser)
-        self.setLayout(layout)
-
-class Worker(QThread):
-    finished = pyqtSignal(object)
-    error = pyqtSignal(Exception)
-
-    def __init__(self, func, *args, **kwargs):
-        super().__init__()
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
-
-    def run(self):
-        try:
-            result = self.func(*self.args, **self.kwargs)
-            self.finished.emit(result)
-        except Exception as e:
-            logging.error(f"Error in worker thread: {e}")
-            self.error.emit(e)
-
-
-def process_image_data(image_data, size=(200, 200)):
-    image = Image.open(BytesIO(image_data))
-    image = image.resize(size, Image.LANCZOS)
-    return image
 
 class RatingDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -424,177 +140,6 @@ class RatingDelegate(QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect)
-
-class ManualAddAlbumDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.cover_image_path = None  # Store the selected image path internally
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle("Add Album Manually")
-        
-        layout = QVBoxLayout()
-
-        self.artistEdit = QLineEdit(self)
-        self.artistEdit.setPlaceholderText("Artist")
-        layout.addWidget(self.artistEdit)
-
-        self.albumEdit = QLineEdit(self)
-        self.albumEdit.setPlaceholderText("Album")
-        layout.addWidget(self.albumEdit)
-
-        self.releaseDateEdit = QLineEdit(self)
-        self.releaseDateEdit.setPlaceholderText("Release Date (DD-MM-YYYY)")
-        layout.addWidget(self.releaseDateEdit)
-
-        self.browseButton = QPushButton("Choose Cover Image", self)
-        self.browseButton.clicked.connect(self.browse_cover_image)
-        layout.addWidget(self.browseButton)
-
-        # Country Drop-down
-        countryLayout = QHBoxLayout()
-        countryLabel = QLabel("Country:", self)
-        countryLayout.addWidget(countryLabel)
-        self.countryComboBox = QComboBox(self)
-        self.countryComboBox.addItems(self.parent().countries)
-        countryLayout.addWidget(self.countryComboBox)
-        layout.addLayout(countryLayout)
-
-        # Genre 1 Drop-down
-        genre1Layout = QHBoxLayout()
-        genre1Label = QLabel("Genre 1:", self)
-        genre1Layout.addWidget(genre1Label)
-        self.genre1ComboBox = QComboBox(self)
-        self.genre1ComboBox.addItems(self.parent().genres)
-        genre1Layout.addWidget(self.genre1ComboBox)
-        layout.addLayout(genre1Layout)
-
-        # Genre 2 Drop-down
-        genre2Layout = QHBoxLayout()
-        genre2Label = QLabel("Genre 2:", self)
-        genre2Layout.addWidget(genre2Label)
-        self.genre2ComboBox = QComboBox(self)
-        self.genre2ComboBox.addItems(self.parent().genres)
-        genre2Layout.addWidget(self.genre2ComboBox)
-        layout.addLayout(genre2Layout)
-
-        self.ratingSpinBox = CustomDoubleSpinBox(self)
-        self.ratingSpinBox.setDecimals(2)
-        self.ratingSpinBox.setRange(0.00, 5.00)
-        self.ratingSpinBox.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-        layout.addWidget(self.ratingSpinBox)
-
-        self.commentsEdit = QLineEdit(self)
-        self.commentsEdit.setPlaceholderText("Comments")
-        layout.addWidget(self.commentsEdit)
-
-        self.submitButton = QPushButton("Add Album", self)
-        self.submitButton.clicked.connect(self.add_album)
-        layout.addWidget(self.submitButton)
-
-        self.setLayout(layout)
-
-    def browse_cover_image(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Cover Image", "", "Image Files (*.png *.jpg *.bmp)")
-        if file_path:
-            self.cover_image_path = file_path  # Store the selected image path internally
-            self.browseButton.setText("Image Selected")  # Indicate that an image has been selected
-
-    def add_album(self):
-        rating_value = self.ratingSpinBox.value()
-        artist = self.artistEdit.text().strip()
-        album = self.albumEdit.text().strip()
-        release_date = self.releaseDateEdit.text().strip()
-        country = self.countryComboBox.currentText()
-        genre1 = self.genre1ComboBox.currentText()
-        genre2 = self.genre2ComboBox.currentText()
-        comments = self.commentsEdit.text().strip()
-
-        if not artist or not album or not release_date:
-            QMessageBox.warning(self, "Input Error", "Please fill in all required fields (Artist, Album, Release Date).")
-            return
-
-        # Validate and convert the release date
-        release_date_formatted = self.parse_date(release_date)
-        if not release_date_formatted:
-            QMessageBox.warning(self, "Input Error", "Invalid date format. Please use DDMMYY, DDMMYYYY, or DD-MM-YYYY.")
-            return
-
-        # **Add validation for the rating value**
-        if not 0.00 <= rating_value <= 5.00:
-            QMessageBox.warning(self, "Input Error", "Rating must be between 0.00 and 5.00.")
-            return
-
-        # Format rating for storage/display
-        rating = "{:.2f}".format(rating_value)
-
-        self.parent().add_manual_album_to_table(
-            artist, album, release_date_formatted, self.cover_image_path,
-            country, genre1, genre2, rating, comments
-        )
-        self.accept()
-
-
-    def parse_date(self, date_str):
-        """Parse the date string into YYYY-MM-DD format."""
-        formats = ["%d%m%y", "%d%m%Y", "%d-%m-%Y"]
-        for fmt in formats:
-            try:
-                date_obj = datetime.strptime(date_str, fmt)
-                return date_obj.strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-        return None
-
-class UpdateDialog(QDialog):
-    def __init__(self, latest_version, current_version, release_notes_url, parent=None):
-        super().__init__(parent)
-        self.latest_version = latest_version
-        self.current_version = current_version
-        self.release_notes_url = release_notes_url
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle("Update Available")
-        self.setModal(True)
-        self.resize(450, 250)  # Adjusted size to accommodate additional text
-
-        layout = QVBoxLayout()
-
-        # Update Message
-        message_label = QLabel(f"""
-            <p>A new version <b>{self.latest_version}</b> is available.</p>
-            <p>You are running version <b>{self.current_version}</b>.</p>
-            <p>Do you want to download and install the updated version of SuShe?</p>
-            """)
-        message_label.setWordWrap(True)
-        layout.addWidget(message_label)
-
-        # Release Notes Link
-        if self.release_notes_url:
-            release_notes_label = QLabel(f'<a href="{self.release_notes_url}">View Release Notes</a>')
-            release_notes_label.setTextFormat(Qt.TextFormat.RichText)
-            release_notes_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-            release_notes_label.setOpenExternalLinks(True)
-            layout.addWidget(release_notes_label)
-
-        # Buttons Layout
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        self.yes_button = QPushButton("Yes")
-        self.no_button = QPushButton("No")
-
-        button_layout.addWidget(self.yes_button)
-        button_layout.addWidget(self.no_button)
-
-        layout.addLayout(button_layout)
-        self.setLayout(layout)
-
-        # Connect Buttons
-        self.yes_button.clicked.connect(self.accept)
-        self.no_button.clicked.connect(self.reject)
 
 class SearchHighlightDelegate(QStyledItemDelegate):
     def __init__(self, parent=None, highlight_color=Qt.GlobalColor.darkYellow):
@@ -674,145 +219,6 @@ class SearchHighlightDelegate(QStyledItemDelegate):
             logging.error(f"Error in SearchHighlightDelegate.paint: {e}")
         finally:
             painter.restore()
-
-class GenreSearchDelegate(QStyledItemDelegate):
-    def __init__(self, items, parent=None, highlight_color=Qt.GlobalColor.cyan):
-        super().__init__(parent)
-        self.items = items
-        self.search_text = ""
-        self.highlight_color = highlight_color
-
-    def set_search_text(self, text):
-        self.search_text = text.lower()
-        self.parent().viewport().update()
-
-    def createEditor(self, parent, option, index):
-        comboBox = QComboBox(parent)
-        comboBox.setEditable(True)
-        comboBox.addItems(self.items)
-        comboBox.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-
-        # Create the completer and set it to be case insensitive
-        completer = QCompleter(self.items, comboBox)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        comboBox.setCompleter(completer)
-
-        # Apply the dark background style to the completer popup
-        completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
-        comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
-
-        # Connect the 'currentIndexChanged' signal to commit data and close editor
-        comboBox.currentIndexChanged.connect(partial(self.commitAndClose, comboBox))
-
-        # Initialize the current text
-        current_value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
-        if current_value in self.items:
-            comboBox.setCurrentIndex(self.items.index(current_value))
-        else:
-            comboBox.setCurrentIndex(-1)
-
-        return comboBox
-
-    def commitAndClose(self, editor):
-        self.commitData.emit(editor)
-        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
-
-    def setEditorData(self, editor, index):
-        value = index.model().data(index, Qt.ItemDataRole.EditRole)
-        idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
-        editor.setCurrentIndex(idx if idx >= 0 else -1)
-
-    def setModelData(self, editor, model, index):
-        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
-
-    def updateEditorGeometry(self, editor, option, index):
-        editor.setGeometry(option.rect)
-
-    def paint(self, painter, option, index):
-        painter.save()
-
-        try:
-            # Draw the background
-            option.widget.style().drawPrimitive(
-                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, option.widget
-            )
-
-            data = index.data(Qt.ItemDataRole.DisplayRole)
-            if data:
-                data_lower = data.lower()
-                if self.search_text and self.search_text in data_lower:
-                    # Prepare to draw the text with highlighted matches
-                    painter.setClipRect(option.rect)
-                    text_rect = option.rect.adjusted(5, 0, -5, 0)
-
-                    # Set up font metrics
-                    fm = painter.fontMetrics()
-                    text_height = fm.height()
-                    x = text_rect.left()
-                    y = text_rect.top() + (text_rect.height() - text_height) / 2
-
-                    # Split the text into segments
-                    segments = []
-                    start = 0
-                    while True:
-                        idx = data_lower.find(self.search_text, start)
-                        if idx == -1:
-                            segments.append((data[start:], False))
-                            break
-                        if idx > start:
-                            segments.append((data[start:idx], False))
-                        segments.append((data[idx:idx+len(self.search_text)], True))
-                        start = idx + len(self.search_text)
-
-                    # Draw each segment
-                    for segment, is_match in segments:
-                        segment_width = fm.horizontalAdvance(segment)
-                        segment_rect = QRectF(x, y, segment_width, text_height)
-                        if is_match:
-                            painter.fillRect(segment_rect, self.highlight_color)
-                        painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
-                        painter.drawText(QPointF(x, y + fm.ascent()), segment)
-                        x += segment_width
-                else:
-                    # No matches, draw text normally
-                    super().paint(painter, option, index)
-            else:
-                # No data, draw normally
-                super().paint(painter, option, index)
-        except Exception as e:
-            logging.error(f"Error in GenreSearchDelegate.paint: {e}")
-        finally:
-            painter.restore()
-
-class ImageWidget(QWidget):
-    def __init__(self, pixmap=None, parent=None):
-        super().__init__(parent)
-        self.label = QLabel(self)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.label)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.base64_image = None  # To store the base64 image if needed
-        if pixmap:
-            self.setPixmap(pixmap)
-
-    def setPixmap(self, pixmap):
-        self.original_pixmap = pixmap
-        self.updateScaledPixmap()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.updateScaledPixmap()
-
-    def updateScaledPixmap(self):
-        if hasattr(self, 'original_pixmap') and self.original_pixmap:
-            scaled_pixmap = self.original_pixmap.scaled(
-                self.size(), 
-                Qt.AspectRatioMode.KeepAspectRatio, 
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.label.setPixmap(scaled_pixmap)
 
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
@@ -906,9 +312,86 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def open_log_viewer(self):
         if not hasattr(self, 'log_viewer_dialog'):
             self.log_viewer_dialog = LogViewerDialog(self)
-            # Set the log_viewer in text_edit_logger
+            # Link the QTextEditLogger to the LogViewerDialog
             self.text_edit_logger.set_log_viewer(self.log_viewer_dialog)
         self.log_viewer_dialog.show()
+
+    def get_update_info(self):
+        """
+        Fetch the latest release info from GitHub and compare it with the current version.
+        """
+        api_url = f"https://api.github.com/repos/{self.github_owner}/{self.github_repo}/releases/latest"
+        headers = {"Authorization": f"token {self.github_token}"}
+        
+        try:
+            response = requests.get(api_url, headers=headers)
+            response.raise_for_status()
+            release_info = response.json()
+            
+            latest_version = release_info.get('tag_name', '').lstrip('v')  # Remove 'v' prefix if present
+            release_notes_url = release_info.get('html_url', '')
+            
+            # Find the download URL for the installer (assuming it's an .exe)
+            download_url = None
+            assets = release_info.get('assets', [])
+            for asset in assets:
+                if asset['name'].endswith('.exe'):
+                    download_url = asset.get('browser_download_url')
+                    break
+            if not download_url and assets:
+                download_url = assets[0]['browser_download_url']  # Fallback to first asset
+            
+            # Compare versions
+            current_version = sys.version.parse(self.version)
+            latest_version_parsed = sys.version.parse(latest_version)
+            
+            if latest_version_parsed > current_version:
+                return True, latest_version, download_url, release_notes_url
+            else:
+                return False, latest_version, download_url, release_notes_url
+        except Exception as e:
+            logging.error(f"Error fetching latest release info: {e}")
+            return False, None, None, None
+
+    def check_for_updates(self):
+        update_available, latest_version, download_url, release_notes_url = self.get_update_info()
+        
+        if update_available:
+            reply = QMessageBox.question(
+                self, 'Update Available',
+                f"A new version ({latest_version}) is available. Do you want to download it?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.initiate_update_download(download_url)
+                return False  # Do not show main window as update is being downloaded
+            else:
+                return True  # Show main window since user declined the update
+        else:
+            return True  # Show main window as no update is available
+
+    def perform_initialization(self):
+        # Initialize UI and other components
+        self.initUI()  # Initialize UI elements before loading settings
+        self.load_config()
+        self.load_settings()
+        self.update_recent_files_menu()
+        
+        if self.last_opened_file and os.path.exists(self.last_opened_file):
+            self.load_album_data(self.last_opened_file)
+            self.current_file_path = self.last_opened_file
+            self.update_window_title()
+            self.dataChanged = False
+
+        # Perform the update check and decide whether to show the main window
+        should_show = self.check_for_updates()
+
+        if should_show:
+            # Show the main window after update check is done
+            self.show()
+        else:
+            # The user chose to download an update; exit the application
+            logging.info("Exiting application after initiating update download.")
 
     def load_config(self):
         config_path = resource_path('config.json')
@@ -951,31 +434,56 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.warning("config.json not found. Telegram submission will not work.")
             QMessageBox.warning(self, "Configuration Missing", "config.json not found. Telegram submission will not work.")
 
-    def check_for_updates(self):
-        if not all([self.github_token, self.github_owner, self.github_repo]):
-            logging.warning("GitHub credentials are missing. Update check will not proceed.")
-            return True  # Proceed to show the main window
+        
+    def initiate_update_download(self, download_url):
+        # Instantiate the DownloadWorker
+        self.download_worker = DownloadWorker(download_url, self.github_token)
+        
+        # Create a QThread to run the worker
+        self.download_thread = QThread()
+        self.download_worker.moveToThread(self.download_thread)
+        
+        # Connect signals and slots
+        self.download_thread.started.connect(self.download_worker.start_download)
+        self.download_worker.progress_changed.connect(self.update_download_progress)
+        self.download_worker.download_finished.connect(self.on_download_finished)
+        self.download_worker.download_failed.connect(self.on_download_failed)
+        
+        # Clean up after download is finished or failed
+        self.download_worker.download_finished.connect(self.download_thread.quit)
+        self.download_worker.download_failed.connect(self.download_thread.quit)
+        self.download_worker.download_finished.connect(self.download_worker.deleteLater)
+        self.download_worker.download_failed.connect(self.download_worker.deleteLater)
+        self.download_thread.finished.connect(self.download_thread.deleteLater)
+        
+        # Start the thread
+        self.download_thread.start()
 
-        current_version = self.version
-        latest_version, download_url, release_notes_url = self.get_latest_github_release()
+    def update_download_progress(self, progress):
+        # Update a progress bar or label in the UI
+        self.progress_bar.setValue(progress)
 
-        if latest_version and download_url:
-            from packaging import version
-            if version.parse(latest_version) > version.parse(current_version):
-                logging.info(f"A new version {latest_version} is available.")
-                update_dialog = UpdateDialog(latest_version, current_version, release_notes_url)
-                reply = update_dialog.exec()
+    def on_download_finished(self, file_path):
+        # Notify the user and prompt to install the update
+        QMessageBox.information(self, "Download Complete", "The update has been downloaded. It will now be installed.")
+        logging.info("Update downloaded successfully.")
+        
+        try:
+            if sys.platform.startswith('win'):
+                os.startfile(file_path)
+            elif sys.platform == 'darwin':
+                subprocess.call(['open', file_path])
+            else:
+                subprocess.call(['xdg-open', file_path])
+            QApplication.quit()  # Close the application after launching the installer
+        except Exception as e:
+            QMessageBox.critical(self, "Installation Failed", f"Failed to launch the installer: {e}")
+            logging.error(f"Failed to launch installer: {e}")
 
-                if reply == QDialog.DialogCode.Accepted:
-                    self.download_and_install_update(download_url)
-                    # User chose to download the update; do not show the main window
-                    return False
-                else:
-                    logging.info("User chose not to update.")
-        else:
-            logging.error("Failed to fetch the latest release information.")
-
-        return True  # Proceed to show the main window
+    def on_download_failed(self, error_message):
+        # Notify the user of the failure
+        QMessageBox.critical(self, "Download Failed", f"Failed to download the update: {error_message}")
+        logging.error(f"Download failed: {error_message}")
 
     def get_latest_github_release(self):
         url = f"https://api.github.com/repos/{self.github_owner}/{self.github_repo}/releases/latest"
@@ -1285,6 +793,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             QMessageBox.warning(self, "Error", "Help file not found. Please ensure 'help.md' is in the application directory.")
             logging.error("Help file 'help.md' not found.")
 
+
     def add_menu_actions(self):
         save_action = self.file_menu.addAction("Save")
         save_action.setShortcut("Ctrl+S")
@@ -1369,7 +878,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.trigger_save_album_data()
             elif reply == QMessageBox.StandardButton.Cancel:
                 return  # Abort submission
-            # If No, proceed without saving
 
         if not self.current_file_path:
             QMessageBox.warning(self, "No File Open", "Please open or save a file before attempting to submit.")
@@ -1381,8 +889,25 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.error("Telegram credentials are missing.")
             return
 
-        dialog = SubmitDialog(self.bot_token, self.chat_id, self.message_thread_id, self.current_file_path, self)
+        # Instantiate and execute the SubmitDialog
+        dialog = SubmitDialog(
+            bot_token=self.bot_token,
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
+            file_path=self.current_file_path,
+            parent=self
+        )
+        dialog.submission_finished.connect(self.handle_submission_result)
         dialog.exec()
+
+    def handle_submission_result(self, success, message):
+        if success:
+            QMessageBox.information(self, "Success", message)
+            logging.info(f"File {self.current_file_path} submitted successfully")
+        else:
+            QMessageBox.critical(self, "Failed", f"File submission failed. Details: {message}")
+            logging.error(f"Failed to submit file {self.current_file_path}: {message}")
+
 
     def get_user_data_path(self, filename, packaged=False):
         """Get a path to the user-specific application data directory for storing the given filename."""
@@ -1952,13 +1477,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             if response.status_code == 200:
                 image_data = response.content
 
-                # Resize the image before encoding
-                image = Image.open(BytesIO(image_data))
-                image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
-                buffered = BytesIO()
-                image.save(buffered, format="PNG")
-                image_bytes = buffered.getvalue()
-                base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                # Encode image to base64
+                base64_image, image_bytes = encode_image_to_base64(image_data)
 
                 # Create QPixmap from image bytes
                 qt_image = QImage.fromData(image_bytes)
@@ -2298,9 +1818,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             # Handle cover image decoding
             base64_image = row_data.get("cover_image")
             if base64_image:
-                image_bytes = base64.b64decode(base64_image)
-                qt_image = QImage.fromData(image_bytes)
-                pixmap = QPixmap.fromImage(qt_image)
+                pixmap = decode_base64_to_pixmap(base64_image)
 
                 # Create ImageWidget and set it in the table
                 image_widget = ImageWidget(pixmap)
@@ -2389,22 +1907,17 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_display))
 
         if cover_image_path:
-            pixmap = QPixmap(cover_image_path)
-            # Resize pixmap if necessary
-            pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            with open(cover_image_path, 'rb') as img_file:
+                image_data = img_file.read()
+                base64_image, image_bytes = encode_image_to_base64(image_data)
+                qt_image = QImage.fromData(image_bytes)
+                pixmap = QPixmap.fromImage(qt_image)
 
-            # Convert pixmap to base64
-            buffered = BytesIO()
-            image = pixmap.toImage()
-            image.save(buffered, "PNG")
-            image_bytes = buffered.getvalue()
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-
-            # Create ImageWidget and set it in the table
-            image_widget = ImageWidget(pixmap)
-            image_widget.base64_image = base64_image
-            self.album_table.setCellWidget(row_position, 3, image_widget)
-            self.album_table.setRowHeight(row_position, 100)
+                # Create ImageWidget and set it in the table
+                image_widget = ImageWidget(pixmap)
+                image_widget.base64_image = base64_image
+                self.album_table.setCellWidget(row_position, 3, image_widget)
+                self.album_table.setRowHeight(row_position, 100)
         else:
             self.album_table.setItem(row_position, 3, QTableWidgetItem())
 
