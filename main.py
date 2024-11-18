@@ -1572,10 +1572,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
                 self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_formatted))
 
-                # Display cover image in table using ImageWidget
-                image_widget = ImageWidget(pixmap)
-                image_widget.base64_image = base64_image  # Store base64 image for saving
+                image_widget = ImageWidget(parent=self.album_table)
                 self.album_table.setCellWidget(row_position, 3, image_widget)
+                image_widget.setImageAsync(image_data=image_data, size=(200, 200), format="PNG")
+                image_widget.base64_image = base64_image  # Store base64 image for saving
                 self.album_table.setRowHeight(row_position, 100)
 
                 # Add placeholder/default values for the rest of the columns
@@ -1839,15 +1839,21 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
             # Retrieve the base64 image from the ImageWidget
             image_widget = self.album_table.cellWidget(row, 3)
-            if image_widget and hasattr(image_widget, 'base64_image'):
+            if image_widget and hasattr(image_widget, 'base64_image') and image_widget.base64_image:
                 row_data["cover_image"] = image_widget.base64_image
             else:
                 row_data["cover_image"] = None
 
             album_data.append(row_data)
 
-        with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump(album_data, file, indent=4)
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(album_data, file, indent=4)
+            logging.info(f"Album data saved to {file_path}.")
+        except Exception as e:
+            logging.error(f"Failed to save album data to {file_path}: {e}")
+            QMessageBox.critical(self, "Save Error", f"Failed to save album data: {e}")
+            return
 
         # Reset the dataChanged flag after saving
         self.dataChanged = False
@@ -1856,8 +1862,17 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
 
     def load_album_data(self, file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            album_data = json.load(file)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                album_data = json.load(file)
+        except json.JSONDecodeError as e:
+            logging.error(f"Error decoding JSON from {file_path}: {e}")
+            QMessageBox.critical(self, "Load Error", f"Failed to decode JSON from {file_path}.")
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error loading {file_path}: {e}")
+            QMessageBox.critical(self, "Load Error", f"An unexpected error occurred: {e}")
+            return
 
         self.album_table.blockSignals(True)  # Block signals before changing the table
         self.album_table.setRowCount(0)
@@ -1865,11 +1880,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             row_pos = self.album_table.rowCount()
             self.album_table.insertRow(row_pos)
 
-            self.album_table.setItem(row_pos, 0, QTableWidgetItem(row_data["artist"]))
+            self.album_table.setItem(row_pos, 0, QTableWidgetItem(row_data.get("artist", "")))
 
-            album_name = row_data["album"]
+            album_name = row_data.get("album", "Unknown Album")
             album_id = row_data.get("album_id", "")
-            artist_name = row_data["artist"]
+            artist_name = row_data.get("artist", "Unknown Artist")
             album_url = self.get_album_url(album_id, artist_name, album_name)
 
             album_label = QLabel()
@@ -1882,28 +1897,31 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
             self.album_table.setCellWidget(row_pos, 1, album_label)
 
-            self.album_table.setItem(row_pos, 2, QTableWidgetItem(row_data["release_date"]))
+            release_date = row_data.get("release_date", "Unknown Release Date")
+            self.album_table.setItem(row_pos, 2, QTableWidgetItem(release_date))
 
             # Handle cover image decoding
             base64_image = row_data.get("cover_image")
             if base64_image:
-                image_bytes = base64.b64decode(base64_image)
-                qt_image = QImage.fromData(image_bytes)
-                pixmap = QPixmap.fromImage(qt_image)
-
-                # Create ImageWidget and set it in the table
-                image_widget = ImageWidget(pixmap)
-                image_widget.base64_image = base64_image  # Store base64 image for saving
-                self.album_table.setCellWidget(row_pos, 3, image_widget)
-                self.album_table.setRowHeight(row_pos, 100)
+                try:
+                    image_bytes = base64.b64decode(base64_image)
+                    # Create ImageWidget and set it in the table asynchronously
+                    image_widget = ImageWidget(parent=self.album_table)
+                    self.album_table.setCellWidget(row_pos, 3, image_widget)
+                    image_widget.setImageAsync(image_data=image_bytes, size=(200, 200), format="PNG")
+                    # No need to set base64_image manually
+                    self.album_table.setRowHeight(row_pos, 100)
+                except Exception as e:
+                    logging.error(f"Failed to load cover image for album '{album_name}': {e}")
+                    self.album_table.setItem(row_pos, 3, QTableWidgetItem("Image Load Failed"))
             else:
                 self.album_table.setItem(row_pos, 3, QTableWidgetItem())
 
-            self.album_table.setItem(row_pos, 4, QTableWidgetItem(row_data["country"]))
-            self.album_table.setItem(row_pos, 5, QTableWidgetItem(row_data["genre_1"]))
-            self.album_table.setItem(row_pos, 6, QTableWidgetItem(row_data["genre_2"]))
-            self.album_table.setItem(row_pos, 7, QTableWidgetItem(row_data["rating"]))
-            self.album_table.setItem(row_pos, 8, QTableWidgetItem(row_data["comments"]))
+            self.album_table.setItem(row_pos, 4, QTableWidgetItem(row_data.get("country", "")))
+            self.album_table.setItem(row_pos, 5, QTableWidgetItem(row_data.get("genre_1", "")))
+            self.album_table.setItem(row_pos, 6, QTableWidgetItem(row_data.get("genre_2", "")))
+            self.album_table.setItem(row_pos, 7, QTableWidgetItem(row_data.get("rating", "0.00")))
+            self.album_table.setItem(row_pos, 8, QTableWidgetItem(row_data.get("comments", "")))
 
         # Set column widths after loading data
         self.set_album_table_column_widths()
@@ -1962,7 +1980,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         row_position = self.album_table.rowCount()
         self.album_table.insertRow(row_position)
-
         self.album_table.setItem(row_position, 0, QTableWidgetItem(artist))
 
         album_label = QLabel()
@@ -1978,24 +1995,18 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_display))
 
         if cover_image_path:
-            pixmap = QPixmap(cover_image_path)
-            # Resize pixmap if necessary
-            pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-
-            # Convert pixmap to base64
-            buffered = BytesIO()
-            image = pixmap.toImage()
-            image.save(buffered, "PNG")
-            image_bytes = buffered.getvalue()
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-
-            # Create ImageWidget and set it in the table
-            image_widget = ImageWidget(pixmap)
-            image_widget.base64_image = base64_image
-            self.album_table.setCellWidget(row_position, 3, image_widget)
-            self.album_table.setRowHeight(row_position, 100)
-        else:
-            self.album_table.setItem(row_position, 3, QTableWidgetItem())
+            try:
+                with open(cover_image_path, 'rb') as img_file:
+                    image_data = img_file.read()
+                # Create ImageWidget and set it in the table asynchronously
+                image_widget = ImageWidget(parent=self.album_table)
+                self.album_table.setCellWidget(row_position, 3, image_widget)
+                image_widget.setImageAsync(image_data=image_data, size=(200, 200), format="PNG")
+                # No need to set base64_image here; ImageWidget handles it
+                self.album_table.setRowHeight(row_position, 100)
+            except Exception as e:
+                logging.error(f"Failed to add cover image: {e}")
+                self.album_table.setItem(row_position, 3, QTableWidgetItem("Image Load Failed"))
 
         self.album_table.setItem(row_position, 4, QTableWidgetItem(country))
         self.album_table.setItem(row_position, 5, QTableWidgetItem(genre1))
