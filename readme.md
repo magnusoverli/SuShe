@@ -42,7 +42,8 @@ The saved json file will store the albums sorted based on the rating in descendi
 It is also supported to open an album directly from the list, in the preferred player of the user (Spotify or Tidal). If Spotify is selected in settings, this will open the Spotify application and the album directly. 
 Since Tidal has (up until recently) been more closed regarding their API, I have not implemented the same integration, but instead opted for creating a URL that will open the Tidal website search, using the artist name and album name as search input. Not very elegant, but it sort of works.
 
-There is also a very simple game inside the application, where the user can invoke a puzzle game from the context menu on any of the albums in the list.
+Eventually I aim for SuShe to take advantage of the RYM (Rate Your Music) API once they release that. Currently it is under development and being tested by selected users. [RYM API Announcement](https://rateyourmusic.com/data-access/register-interest/)
+
 
 ## Contribution
 Although I am very nervous about letting people see what I feel must be a mess of a project, I am welcoming the opportunity to let others potentially guide me and even contribute directly to the project. Please reach out, and don't be afraid to let me know just how much better something can be done! :-)
