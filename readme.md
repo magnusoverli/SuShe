@@ -2,7 +2,8 @@
 
 SuShe is a very basic tool, aimed at creating rich and coherent "album-of-the-year" lists for personal use.
 
-![{66F0EC70-CC9D-43FB-9721-772D20BE1EEC}](https://github.com/user-attachments/assets/20527c23-b5a2-455e-b87f-673efe712740)
+![{D2AB3F09-C63F-4AB4-A83D-5D551C860F68}](https://github.com/user-attachments/assets/a4616d42-bdd4-4d13-b4ef-7b0496296d25)
+
 
 ## Background
 
