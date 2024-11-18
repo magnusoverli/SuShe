@@ -112,7 +112,7 @@ class RatingDelegate(QStyledItemDelegate):
         editor.setFrame(False)
         editor.setDecimals(2)
         # Set locale to English (United States) to use dot as decimal separator
-        editor.setLocale(Qt.Locale(QLocale.Language.English, QLocale.Country.UnitedStates))
+        editor.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         
         # Correctly locate and set the stylesheet for the editor
         style_sheet_path = os.path.join(os.path.dirname(__file__), 'style.qss')
