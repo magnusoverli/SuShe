@@ -96,12 +96,6 @@ class CustomDoubleSpinBox(QDoubleSpinBox):
         else:
             super().keyPressEvent(event)
 
-
-def process_image_data(image_data, size=(200, 200)):
-    image = Image.open(BytesIO(image_data))
-    image = image.resize(size, Image.LANCZOS)
-    return image
-
 class RatingDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         editor = CustomDoubleSpinBox(parent)
