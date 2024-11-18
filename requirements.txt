@@ -1,6 +1,5 @@
-aiohttp
 Markdown
-Pillow
-PyQt6
+packaging
 Requests
-Packaging
+PyQt6
+pillow
