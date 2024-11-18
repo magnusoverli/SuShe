@@ -16,23 +16,25 @@ class ImageProcessor(QObject):
     processing_finished = pyqtSignal(str, QPixmap)  # Emits base64 string and QPixmap
     processing_failed = pyqtSignal(str)             # Emits error message
 
-    def __init__(self, image_data, size=(200, 200), format="PNG"):
+    def __init__(self, image_data, size=(100, 100), format="WEBP"):
         super().__init__()
         self.image_data = image_data
         self.size = size
-        self.format = format
+        self.format = format.upper()  # Store format as an instance variable
 
     def process_image(self):
         try:
             # Open and resize the image
             image = Image.open(BytesIO(self.image_data))
+            image = image.convert("RGB") if self.format in ["JPEG", "WEBP"] else image  # Ensure compatibility
             image = image.resize(self.size, Image.LANCZOS)
             
             # Save to bytes with optimization
             buffered = BytesIO()
-            if self.format.upper() == "JPEG":
-                image = image.convert("RGB")  # JPEG doesn't support transparency
-                image.save(buffered, format=self.format, optimize=True, quality=85)
+            if self.format == "JPEG":
+                image.save(buffered, format=self.format, optimize=True, quality=55)  # Reduced quality
+            elif self.format == "WEBP":
+                image.save(buffered, format=self.format, optimize=True, quality=55)  # Quality can be adjusted
             else:
                 image.save(buffered, format=self.format, optimize=True)
             image_bytes = buffered.getvalue()
@@ -41,7 +43,9 @@ class ImageProcessor(QObject):
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
             
             # Convert to QPixmap
-            qt_image = QImage.fromData(image_bytes)
+            qt_image = QImage.fromData(image_bytes, self.format.lower())
+            if qt_image.isNull():
+                raise ValueError("Failed to convert image to QImage.")
             pixmap = QPixmap.fromImage(qt_image)
             
             logging.debug(f"Image processed to size: {self.size} and format: {self.format}")
@@ -78,7 +82,7 @@ class ImageWidget(QWidget):
     A widget to display images, automatically scaling them to fit the widget's size while maintaining aspect ratio.
     Handles asynchronous image processing to ensure UI responsiveness.
     """
-    def __init__(self, image_data=None, size=(200, 200), format="PNG", parent=None):
+    def __init__(self, image_data=None, size=(100, 100), format="WEBP", parent=None):
         super().__init__(parent)
         self.label = QLabel(self)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -100,14 +104,14 @@ class ImageWidget(QWidget):
         if image_data:
             self.setImageAsync(image_data=image_data, size=size, format=format)
 
-    def setImageAsync(self, image_data, size=(200, 200), format="PNG"):
+    def setImageAsync(self, image_data, size=(100, 100), format="WEBP"):
         """
         Sets the image asynchronously to prevent blocking the UI.
 
         Args:
             image_data (bytes): Raw image data.
             size (tuple): Desired image size.
-            format (str): Image format ('PNG' or 'JPEG').
+            format (str): Image format ('WEBP' or 'JPEG').
         """
         self.progress_bar.show()
         

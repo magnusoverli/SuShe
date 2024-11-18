@@ -1,3 +1,5 @@
+# main.py
+
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView)
@@ -1525,6 +1527,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "album_id": album_id,
                 "release_date": release_date,
                 "cover_image": None,  # Will be set below
+                "cover_image_format": None,  # New key for image format
                 "country": self.album_table.item(row, 4).text() if self.album_table.item(row, 4) else "",
                 "genre_1": self.album_table.item(row, 5).text() if self.album_table.item(row, 5) else "",
                 "genre_2": self.album_table.item(row, 6).text() if self.album_table.item(row, 6) else "",
@@ -1534,12 +1537,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "points": points,  # Include "Points"
             }
 
-            # Retrieve the base64 image from the ImageWidget
+            # Retrieve the base64 image and its format from the ImageWidget
             image_widget = self.album_table.cellWidget(row, 3)
             if image_widget and hasattr(image_widget, 'base64_image') and image_widget.base64_image:
                 row_data["cover_image"] = image_widget.base64_image
+                row_data["cover_image_format"] = image_widget.image_processor.format  # Store the format
             else:
                 row_data["cover_image"] = None
+                row_data["cover_image_format"] = None
 
             album_data.append(row_data)
 
@@ -1599,13 +1604,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
             # Handle cover image decoding
             base64_image = row_data.get("cover_image")
+            cover_image_format = row_data.get("cover_image_format", "PNG")  # Default to PNG if not specified
             if base64_image:
                 try:
                     image_bytes = base64.b64decode(base64_image)
                     # Create ImageWidget and set it in the table asynchronously
                     image_widget = ImageWidget(parent=self.album_table)
                     self.album_table.setCellWidget(row_pos, 3, image_widget)
-                    image_widget.setImageAsync(image_data=image_bytes, size=(200, 200), format="PNG")
+                    image_widget.setImageAsync(image_data=image_bytes, size=(200, 200), format=cover_image_format)
                     # No need to set base64_image manually
                     self.album_table.setRowHeight(row_pos, 100)
                 except Exception as e:
@@ -1695,10 +1701,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             try:
                 with open(cover_image_path, 'rb') as img_file:
                     image_data = img_file.read()
+                # Determine the format based on the file extension
+                _, ext = os.path.splitext(cover_image_path)
+                format = ext.replace('.', '').upper()  # e.g., "PNG", "WEBP"
+                if format not in ["PNG", "WEBP", "JPEG"]:
+                    format = "PNG"  # Default to PNG if unsupported
                 # Create ImageWidget and set it in the table asynchronously
                 image_widget = ImageWidget(parent=self.album_table)
                 self.album_table.setCellWidget(row_position, 3, image_widget)
-                image_widget.setImageAsync(image_data=image_data, size=(200, 200), format="PNG")
+                image_widget.setImageAsync(image_data=image_data, size=(200, 200), format=format)
                 # No need to set base64_image here; ImageWidget handles it
                 self.album_table.setRowHeight(row_position, 100)
             except Exception as e:
