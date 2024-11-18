@@ -2,7 +2,8 @@ from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, QTextEdit,
                              QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle, QHeaderView)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QPalette
-from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
+from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
+from image_handler import ImageWidget, encode_image_to_base64, decode_base64_to_pixmap
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -1952,13 +1953,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             if response.status_code == 200:
                 image_data = response.content
 
-                # Resize the image before encoding
-                image = Image.open(BytesIO(image_data))
-                image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
-                buffered = BytesIO()
-                image.save(buffered, format="PNG")
-                image_bytes = buffered.getvalue()
-                base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                # Encode image to base64
+                base64_image, image_bytes = encode_image_to_base64(image_data)
 
                 # Create QPixmap from image bytes
                 qt_image = QImage.fromData(image_bytes)
@@ -2298,9 +2294,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             # Handle cover image decoding
             base64_image = row_data.get("cover_image")
             if base64_image:
-                image_bytes = base64.b64decode(base64_image)
-                qt_image = QImage.fromData(image_bytes)
-                pixmap = QPixmap.fromImage(qt_image)
+                pixmap = decode_base64_to_pixmap(base64_image)
 
                 # Create ImageWidget and set it in the table
                 image_widget = ImageWidget(pixmap)
@@ -2389,22 +2383,17 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_display))
 
         if cover_image_path:
-            pixmap = QPixmap(cover_image_path)
-            # Resize pixmap if necessary
-            pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            with open(cover_image_path, 'rb') as img_file:
+                image_data = img_file.read()
+                base64_image, image_bytes = encode_image_to_base64(image_data)
+                qt_image = QImage.fromData(image_bytes)
+                pixmap = QPixmap.fromImage(qt_image)
 
-            # Convert pixmap to base64
-            buffered = BytesIO()
-            image = pixmap.toImage()
-            image.save(buffered, "PNG")
-            image_bytes = buffered.getvalue()
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-
-            # Create ImageWidget and set it in the table
-            image_widget = ImageWidget(pixmap)
-            image_widget.base64_image = base64_image
-            self.album_table.setCellWidget(row_position, 3, image_widget)
-            self.album_table.setRowHeight(row_position, 100)
+                # Create ImageWidget and set it in the table
+                image_widget = ImageWidget(pixmap)
+                image_widget.base64_image = base64_image
+                self.album_table.setCellWidget(row_position, 3, image_widget)
+                self.album_table.setRowHeight(row_position, 100)
         else:
             self.album_table.setItem(row_position, 3, QTableWidgetItem())
 
