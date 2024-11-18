@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, QTextEdit, QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle)
+                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QDoubleSpinBox, QMessageBox, QTextEdit,
+                             QTextBrowser, QProgressDialog, QCompleter, QAbstractItemView, QStyle, QHeaderView)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QKeyEvent, QBrush, QPalette
 from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QSize, QByteArray, QBuffer, QTimer, QLocale, QObject, QUrl, QRectF, QPointF
 from datetime import datetime
@@ -10,6 +11,7 @@ import requests
 import logging
 import base64
 from functools import partial
+from io import BytesIO
 import os
 import json
 import sys
@@ -783,6 +785,35 @@ class GenreSearchDelegate(QStyledItemDelegate):
         finally:
             painter.restore()
 
+class ImageWidget(QWidget):
+    def __init__(self, pixmap=None, parent=None):
+        super().__init__(parent)
+        self.label = QLabel(self)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.label)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.base64_image = None  # To store the base64 image if needed
+        if pixmap:
+            self.setPixmap(pixmap)
+
+    def setPixmap(self, pixmap):
+        self.original_pixmap = pixmap
+        self.updateScaledPixmap()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.updateScaledPixmap()
+
+    def updateScaledPixmap(self):
+        if hasattr(self, 'original_pixmap') and self.original_pixmap:
+            scaled_pixmap = self.original_pixmap.scaled(
+                self.size(), 
+                Qt.AspectRatioMode.KeepAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.label.setPixmap(scaled_pixmap)
+
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
         super().__init__()
@@ -1483,19 +1514,24 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def set_album_table_column_widths(self):
         # Set the desired column widths
-        self.album_table.setColumnWidth(0, 130)  # Example width for the "Artist" column
-        self.album_table.setColumnWidth(1, 200)  # Adjusted width for the "Album" column
-        self.album_table.setColumnWidth(2, 100)  # Example width for the "Release Date" column
-        self.album_table.setColumnWidth(3, 107)  # Adjusted width for the "Cover" column
-        self.album_table.setColumnWidth(4, 150)  # Example width for the "Country" column
-        self.album_table.setColumnWidth(5, 170)  # Adjusted width for the "Genre 1" column
-        self.album_table.setColumnWidth(6, 170)  # Adjusted width for the "Genre 2" column
-        self.album_table.setColumnWidth(7, 65)  # Adjusted width for the "Rating" column
-        self.album_table.setColumnWidth(8, 340)  # Adjusted width for the "Comments" column
+        self.album_table.setColumnWidth(0, 130)  # "Artist" column
+        self.album_table.setColumnWidth(1, 200)  # "Album" column
+        self.album_table.setColumnWidth(2, 100)  # "Release Date" column
+        self.album_table.setColumnWidth(3, 100)  # "Cover Image" column (adjusted width)
+        self.album_table.setColumnWidth(4, 150)  # "Country" column
+        self.album_table.setColumnWidth(5, 170)  # "Genre 1" column
+        self.album_table.setColumnWidth(6, 170)  # "Genre 2" column
+        self.album_table.setColumnWidth(7, 65)   # "Rating" column
+        self.album_table.setColumnWidth(8, 340)  # "Comments" column
+
+        # Set fixed column sizes
+        header = self.album_table.horizontalHeader()
+        for i in range(self.album_table.columnCount()):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
 
     def set_static_row_heights(self):
         for row in range(self.album_table.rowCount()):
-            self.album_table.setRowHeight(row, 100)
+            self.album_table.setRowHeight(row, 100)  # Adjust the row height as needed
 
     def setup_settings_tab(self):
         layout = QVBoxLayout()
@@ -1914,19 +1950,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             image_url = result['images'][0]['url']
             response = requests.get(image_url)
             if response.status_code == 200:
-                image = Image.open(BytesIO(response.content))
-                image = image.resize((200, 200), Image.LANCZOS)
+                image_data = response.content
 
-                # Save the image
-                if sys.platform == 'win32':
-                    images_dir = Path(os.getenv('APPDATA')) / 'SuSheApp' / 'images'
-                else:
-                    images_dir = Path(os.path.expanduser('~')) / '.SuSheApp' / 'images'
+                # Resize the image before encoding
+                image = Image.open(BytesIO(image_data))
+                image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
+                buffered = BytesIO()
+                image.save(buffered, format="PNG")
+                image_bytes = buffered.getvalue()
+                base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-                images_dir.mkdir(parents=True, exist_ok=True)  # Create parent directories if they don't exist
-                filename = f"{album_name.replace('/', '')}.jpg"  # Simple sanitization
-                image_path = images_dir / filename
-                image.save(image_path)
+                # Create QPixmap from image bytes
+                qt_image = QImage.fromData(image_bytes)
+                pixmap = QPixmap.fromImage(qt_image)
 
                 # Add album details to the table
                 row_position = self.album_table.rowCount()
@@ -1947,14 +1983,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
                 self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_formatted))
 
-                # Display cover image in table
-                icon = QIcon(str(image_path))
-                cover_item = QTableWidgetItem()
-                cover_item.setIcon(icon)
-                cover_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.album_table.setItem(row_position, 3, cover_item)
+                # Display cover image in table using ImageWidget
+                image_widget = ImageWidget(pixmap)
+                image_widget.base64_image = base64_image  # Store base64 image for saving
+                self.album_table.setCellWidget(row_position, 3, image_widget)
                 self.album_table.setRowHeight(row_position, 100)
-                self.album_table.setIconSize(QSize(100, 100))
 
                 # Add placeholder/default values for the rest of the columns
                 default_country = "Country"
@@ -1974,8 +2007,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 # Set column widths after adding data
                 self.set_album_table_column_widths()
 
-                # Show the notification with the cover image
-                self.show_notification(f"Added album '{album_name}'", str(image_path))
+                # Show the notification without the image path
+                self.show_notification(f"Added album '{album_name}'")
             else:
                 logging.error("Failed to download the album cover image.")
 
@@ -2205,7 +2238,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "album": album_name,
                 "album_id": album_id,
                 "release_date": release_date,
-                "cover_image": None,  # Handle cover image encoding if exists
+                "cover_image": None,  # Will be set below
                 "country": self.album_table.item(row, 4).text() if self.album_table.item(row, 4) else "",
                 "genre_1": self.album_table.item(row, 5).text() if self.album_table.item(row, 5) else "",
                 "genre_2": self.album_table.item(row, 6).text() if self.album_table.item(row, 6) else "",
@@ -2215,13 +2248,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "points": points,  # Include "Points"
             }
 
-            if self.album_table.item(row, 3) and self.album_table.item(row, 3).icon():
-                pixmap = self.album_table.item(row, 3).icon().pixmap(100, 100)
-                byte_array = QByteArray()
-                buffer = QBuffer(byte_array)
-                buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-                pixmap.save(buffer, "PNG")
-                row_data["cover_image"] = base64.b64encode(byte_array.data()).decode('utf-8')
+            # Retrieve the base64 image from the ImageWidget
+            image_widget = self.album_table.cellWidget(row, 3)
+            if image_widget and hasattr(image_widget, 'base64_image'):
+                row_data["cover_image"] = image_widget.base64_image
+            else:
+                row_data["cover_image"] = None
 
             album_data.append(row_data)
 
@@ -2264,20 +2296,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.album_table.setItem(row_pos, 2, QTableWidgetItem(row_data["release_date"]))
 
             # Handle cover image decoding
-            if row_data["cover_image"]:
-                cover_image_data = base64.b64decode(row_data["cover_image"])
-                image = QImage.fromData(cover_image_data)
-                pixmap = QPixmap.fromImage(image)
+            base64_image = row_data.get("cover_image")
+            if base64_image:
+                image_bytes = base64.b64decode(base64_image)
+                qt_image = QImage.fromData(image_bytes)
+                pixmap = QPixmap.fromImage(qt_image)
 
-                # Resize the pixmap to the desired size (e.g., 100x100)
-                scaled_pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                icon = QIcon(scaled_pixmap)
-                item = QTableWidgetItem()
-                item.setIcon(icon)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)  # Center align the icon
-                self.album_table.setItem(row_pos, 3, item)
-                self.album_table.setRowHeight(row_pos, 100)  # Ensure row height matches the image size
-                self.album_table.setIconSize(QSize(100, 100))  # Set icon size
+                # Create ImageWidget and set it in the table
+                image_widget = ImageWidget(pixmap)
+                image_widget.base64_image = base64_image  # Store base64 image for saving
+                self.album_table.setCellWidget(row_pos, 3, image_widget)
+                self.album_table.setRowHeight(row_pos, 100)
+            else:
+                self.album_table.setItem(row_pos, 3, QTableWidgetItem())
 
             self.album_table.setItem(row_pos, 4, QTableWidgetItem(row_data["country"]))
             self.album_table.setItem(row_pos, 5, QTableWidgetItem(row_data["genre_1"]))
@@ -2359,13 +2390,21 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         if cover_image_path:
             pixmap = QPixmap(cover_image_path)
-            icon = QIcon(pixmap)
-            cover_item = QTableWidgetItem()
-            cover_item.setIcon(icon)
-            cover_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.album_table.setItem(row_position, 3, cover_item)
+            # Resize pixmap if necessary
+            pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+
+            # Convert pixmap to base64
+            buffered = BytesIO()
+            image = pixmap.toImage()
+            image.save(buffered, "PNG")
+            image_bytes = buffered.getvalue()
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+
+            # Create ImageWidget and set it in the table
+            image_widget = ImageWidget(pixmap)
+            image_widget.base64_image = base64_image
+            self.album_table.setCellWidget(row_position, 3, image_widget)
             self.album_table.setRowHeight(row_position, 100)
-            self.album_table.setIconSize(QSize(100, 100))
         else:
             self.album_table.setItem(row_position, 3, QTableWidgetItem())
 
