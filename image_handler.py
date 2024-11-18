@@ -52,3 +52,8 @@ def decode_base64_to_pixmap(base64_image):
     qt_image = QImage.fromData(image_bytes)
     pixmap = QPixmap.fromImage(qt_image)
     return pixmap
+
+def process_image_data(image_data, size=(200, 200)):
+    image = Image.open(BytesIO(image_data))
+    image = image.resize(size, Image.LANCZOS)
+    return image

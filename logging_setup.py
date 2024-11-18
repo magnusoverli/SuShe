@@ -1,7 +1,9 @@
 # logging_setup.py
 
+import datetime
 import logging
 import sys
+import os
 from PyQt6.QtWidgets import QTextEdit
 from PyQt6.QtCore import QObject, pyqtSignal
 
