@@ -39,7 +39,7 @@ class ImageWidget(QWidget):
 def encode_image_to_base64(image_data):
     """Resize the image and encode it to a base64 string."""
     image = Image.open(BytesIO(image_data))
-    image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
+    image.thumbnail((300, 300), Image.LANCZOS)  # Resize while keeping aspect ratio
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     image_bytes = buffered.getvalue()
