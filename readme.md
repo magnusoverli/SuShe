@@ -50,3 +50,7 @@ Eventually I aim for SuShe to take advantage of the RYM (Rate Your Music) API on
 
 ## Contribution
 Although I am very nervous about letting people see what I feel must be a mess of a project, I am welcoming the opportunity to let others potentially guide me and even contribute directly to the project. Please reach out, and don't be afraid to let me know just how much better something can be done! :-)
+
+## LICENSE
+This project is licensed under the GPLv3 license. See LICENSE for details.
+Also see LICENSES.md for license details on dependencies.
