@@ -22,6 +22,7 @@ import subprocess
 
 from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog
 from workers import DownloadWorker, SubmitWorker, Worker
+from image_handler import ImageWidget
 
 def setup_logging():
     # Define the logs directory within the user's application data folder
@@ -167,12 +168,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect)
-
-
-def process_image_data(image_data, size=(200, 200)):
-    image = Image.open(BytesIO(image_data))
-    image = image.resize(size, Image.LANCZOS)
-    return image
 
 class RatingDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -407,35 +402,6 @@ class GenreSearchDelegate(QStyledItemDelegate):
             logging.error(f"Error in GenreSearchDelegate.paint: {e}")
         finally:
             painter.restore()
-
-class ImageWidget(QWidget):
-    def __init__(self, pixmap=None, parent=None):
-        super().__init__(parent)
-        self.label = QLabel(self)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.label)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.base64_image = None  # To store the base64 image if needed
-        if pixmap:
-            self.setPixmap(pixmap)
-
-    def setPixmap(self, pixmap):
-        self.original_pixmap = pixmap
-        self.updateScaledPixmap()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.updateScaledPixmap()
-
-    def updateScaledPixmap(self):
-        if hasattr(self, 'original_pixmap') and self.original_pixmap:
-            scaled_pixmap = self.original_pixmap.scaled(
-                self.size(), 
-                Qt.AspectRatioMode.KeepAspectRatio, 
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.label.setPixmap(scaled_pixmap)
 
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
