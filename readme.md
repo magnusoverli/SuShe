@@ -1,6 +1,7 @@
 # SuShe (SuperSheet)
 
-SuShe is a very basic tool, aimed at creating rich and coherent "album-of-the-year" lists for personal use.
+SuShe is a very basic desktop aplication, aimed at creating rich and coherent "album-of-the-year" lists for personal use.
+It is written in pytyon and using PyQt6 for the GUI framework.
 
 ![{D2AB3F09-C63F-4AB4-A83D-5D551C860F68}](https://github.com/user-attachments/assets/a4616d42-bdd4-4d13-b4ef-7b0496296d25)
 
