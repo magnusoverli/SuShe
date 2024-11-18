@@ -60,7 +60,7 @@ exe = EXE(
     name='SuShe',  # Name of the executable file
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
@@ -74,7 +74,7 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=False,
+    strip=True,
     upx=True,
     upx_exclude=[],
     name=output_name,  # Use the versioned output folder name
