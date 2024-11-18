@@ -2,6 +2,8 @@
 
 SuShe is a very basic tool, aimed at creating rich and coherent "album-of-the-year" lists for personal use.
 
+![{66F0EC70-CC9D-43FB-9721-772D20BE1EEC}](https://github.com/user-attachments/assets/20527c23-b5a2-455e-b87f-673efe712740)
+
 ## Background
 
 SuShe (SuperSheet) was born out of the need to standardize album-of-year award lists. Myself and a group of like minded people where arranging the annual Metal Awards, and saw the need to have the members' lists in a more standadrized form.
