@@ -140,21 +140,12 @@ class ComboBoxDelegate(QStyledItemDelegate):
         comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
 
         # Connect the 'currentIndexChanged' signal to commit data and close editor
-        comboBox.currentIndexChanged.connect(partial(self.commitAndClose, comboBox))
-
-        # Initialize the current text
-        current_value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
-        if current_value in self.items:
-            comboBox.setCurrentIndex(self.items.index(current_value))
-        else:
-            comboBox.setCurrentIndex(-1)
+        comboBox.currentIndexChanged.connect(self.commitAndClose)
 
         return comboBox
 
-    def commitAndClose(self, editor):
-        """
-        Commit the data from the editor to the model and close the editor.
-        """
+    def commitAndClose(self):
+        editor = self.sender()  # Get the editor that sent the signal
         self.commitData.emit(editor)
         self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
 
@@ -321,18 +312,12 @@ class GenreSearchDelegate(QStyledItemDelegate):
         comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
 
         # Connect the 'currentIndexChanged' signal to commit data and close editor
-        comboBox.currentIndexChanged.connect(partial(self.commitAndClose, comboBox))
-
-        # Initialize the current text
-        current_value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
-        if current_value in self.items:
-            comboBox.setCurrentIndex(self.items.index(current_value))
-        else:
-            comboBox.setCurrentIndex(-1)
+        comboBox.currentIndexChanged.connect(self.commitAndClose)
 
         return comboBox
 
-    def commitAndClose(self, editor):
+    def commitAndClose(self):
+        editor = self.sender()  # Get the editor that sent the signal
         self.commitData.emit(editor)
         self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
 
