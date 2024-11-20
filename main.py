@@ -30,6 +30,9 @@ from delegates import (
     ComboBoxDelegate, RatingDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags
 )
 
+from telegram_bot import TelegramBot
+
+
 def setup_logging():
     # Define the logs directory within the user's application data folder
     app_name = 'SuSheApp'
@@ -657,7 +660,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.trigger_save_album_data()
             elif reply == QMessageBox.StandardButton.Cancel:
                 return  # Abort submission
-            # If No, proceed without saving
 
         if not self.current_file_path:
             QMessageBox.warning(self, "No File Open", "Please open or save a file before attempting to submit.")
@@ -669,7 +671,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.error("Telegram credentials are missing.")
             return
 
-        dialog = SubmitDialog(self.bot_token, self.chat_id, self.message_thread_id, self.current_file_path, self)
+        dialog = SubmitDialog(
+            bot_token=self.bot_token,
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
+            file_path=self.current_file_path,
+            parent=self
+        )
         dialog.exec()
 
     def get_user_data_path(self, filename, packaged=False):
