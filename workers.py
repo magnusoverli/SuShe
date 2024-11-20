@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 import requests
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
+from telegram_bot import TelegramBot
 
 
 class DownloadWorker(QObject):
@@ -58,46 +59,38 @@ class DownloadWorker(QObject):
 
 
 class SubmitWorker(QThread):
-    submission_finished = pyqtSignal(bool, str)  # Signal to emit the result
+    submission_finished = pyqtSignal(bool, str)  # Signal to indicate submission status
 
-    def __init__(self, bot_token, chat_id, message_thread_id, file_path, caption):
-        super().__init__()
+    def __init__(self, bot_token, chat_id, message_thread_id, file_path, caption, parent=None):
+        super().__init__(parent)
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.message_thread_id = message_thread_id
         self.file_path = file_path
-        self.caption = caption  # New attribute for the caption
+        self.caption = caption
 
     def run(self):
-        url = f"https://api.telegram.org/bot{self.bot_token}/sendDocument"
         try:
-            with open(self.file_path, 'rb') as file:
-                files = {'document': (Path(self.file_path).name, file)}
-                data = {
-                    'chat_id': self.chat_id,
-                    'message_thread_id': int(self.message_thread_id),  # Ensure it's an integer
-                    'caption': self.caption  # Include the caption in the data
-                }
+            logging.info("Starting submission to Telegram.")
+            # Initialize TelegramBot
+            telegram_bot = TelegramBot(
+                token=self.bot_token,
+                chat_id=self.chat_id,
+                message_thread_id=self.message_thread_id
+            )
 
-                logging.info(f"Submitting file {self.file_path} to Telegram with caption: {self.caption}")
-                response = requests.post(url, files=files, data=data)
-                response.raise_for_status()
-                logging.info(f"File {self.file_path} submitted successfully")
-                self.submission_finished.emit(True, "File submitted successfully.")
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to submit file {self.file_path}: {e}")
-            error_info = ""
-            try:
-                error_info = response.json().get('description', 'No error description provided.')
-            except:
-                error_info = str(e)
-            self.submission_finished.emit(False, error_info)
-        except ValueError as ve:
-            logging.error(f"Invalid message_thread_id: {self.message_thread_id}. It must be an integer.")
-            self.submission_finished.emit(False, "Invalid message_thread_id. It must be an integer.")
+            # Ensure the file exists
+            if not self.file_path or not os.path.exists(self.file_path):
+                raise FileNotFoundError("Album file not found.")
+
+            # Send the JSON file with an optional caption
+            telegram_bot.send_json_file(self.file_path, caption=self.caption)
+
+            logging.info("Submission to Telegram completed successfully.")
+            self.submission_finished.emit(True, "Submission successful.")
         except Exception as e:
-            logging.error(f"An unexpected error occurred while submitting the file: {e}")
-            self.submission_finished.emit(False, f"An unexpected error occurred: {e}")
+            logging.error(f"Error during submission: {e}")
+            self.submission_finished.emit(False, str(e))
 
 
 class Worker(QThread):

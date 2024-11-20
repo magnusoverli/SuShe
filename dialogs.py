@@ -102,7 +102,6 @@ class SubmitDialog(QDialog):
             QMessageBox.critical(self, "Failed", f"File submission failed. Details: {message}")
             logging.error(f"Failed to submit file {self.file_path}: {message}")
 
-
 class HelpDialog(QDialog):
     def __init__(self, html_content, parent=None):
         super().__init__(parent)
