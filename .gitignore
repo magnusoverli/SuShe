@@ -1,8 +1,6 @@
 # Ignore configuration files containing sensitive information
 config.json
-
-# Ignore the cheatsheet
-cheatsheet
+*.code-workspace
 
 # Ignore log files
 logs/
