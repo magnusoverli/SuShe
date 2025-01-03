@@ -1056,26 +1056,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.artist_search_worker.start()
 
     def _search_artist(self, artist_name):
-        access_token = self.get_access_token()
-        if not access_token:
-            return {"error": "Failed to obtain access token"}
-
-        url = f"https://api.spotify.com/v1/search"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        params = {
-            "q": artist_name,
-            "type": "artist",
-            "limit": 50
-        }
-        try:
-            logging.info(f"Searching for artist: {artist_name}")
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            logging.info(f"Artist data fetched successfully for: {artist_name}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to search for artist {artist_name}: {e}")
-            return {"error": str(e)}
+        return self.fetch_spotify_data(
+            url="https://api.spotify.com/v1/search",
+            params={"q": artist_name, "type": "artist", "limit": 50}
+        )
 
     def on_artists_fetched(self, result):
         QApplication.restoreOverrideCursor()
@@ -1112,25 +1096,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.albums_fetch_worker.start()
 
     def _fetch_artist_albums(self, artist_id):
-        access_token = self.get_access_token()
-        if not access_token:
-            return {"error": "Failed to obtain access token"}
-
-        url = f"https://api.spotify.com/v1/artists/{artist_id}/albums"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        params = {
-            "include_groups": "album,single",
-            "limit": 50
-        }
-        try:
-            logging.info(f"Fetching albums for artist ID: {artist_id}")
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            logging.info(f"Albums fetched successfully for artist ID: {artist_id}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to fetch albums for artist_id {artist_id}: {e}")
-            return {"error": str(e)}
+        return self.fetch_spotify_data(
+            url=f"https://api.spotify.com/v1/artists/{artist_id}/albums",
+            params={"include_groups": "album,single", "limit": 50}
+        )
 
     def on_albums_fetched(self, result):
         QApplication.restoreOverrideCursor()
@@ -1151,21 +1120,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_list.blockSignals(False)  # Unblock signals after updates
 
     def _fetch_album_details(self, album_id):
-        access_token = self.get_access_token()
-        if not access_token:
-            return {"error": "Failed to obtain access token"}
-
-        url = f"https://api.spotify.com/v1/albums/{album_id}"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        try:
-            logging.info(f"Fetching details for album ID: {album_id}")
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            logging.info(f"Details fetched successfully for album ID: {album_id}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to fetch album details for album_id {album_id}: {e}")
-            return {"error": str(e)}
+        return self.fetch_spotify_data(
+            url=f"https://api.spotify.com/v1/albums/{album_id}"
+        )
 
     def fetch_album_details(self, item):
         album_text = item.text()
@@ -1177,22 +1134,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def fetch_album_details_by_id(self, album_id: str):
         def fetch_data():
-            access_token = self.get_access_token()
-            if not access_token:
-                logging.error("Failed to obtain access token")
-                return {"error": "Failed to obtain access token"}
-            
-            url = f"https://api.spotify.com/v1/albums/{album_id}"
-            headers = {"Authorization": f"Bearer {access_token}"}
-            try:
-                logging.info(f"Fetching details for album ID: {album_id}")
-                response = requests.get(url, headers=headers)
-                response.raise_for_status()
-                logging.info(f"Details fetched successfully for album ID: {album_id}")
-                return response.json()
-            except requests.exceptions.RequestException as e:
-                logging.error(f"Failed to fetch album details for album_id {album_id}: {e}")
-                return {"error": str(e)}
+            return self.fetch_spotify_data(
+                url=f"https://api.spotify.com/v1/albums/{album_id}"
+            )
 
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
@@ -1734,6 +1678,22 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
+
+    def fetch_spotify_data(self, url, params=None):
+        access_token = self.get_access_token()
+        if not access_token:
+            return {"error": "Failed to obtain access token"}
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        try:
+            logging.info(f"Fetching data from Spotify API: {url}")
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            logging.info(f"Data fetched successfully from Spotify API: {url}")
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Failed to fetch data from Spotify API: {e}")
+            return {"error": str(e)}
 
 if __name__ == "__main__":
     print("Starting application...")

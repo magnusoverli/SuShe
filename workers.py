@@ -1,10 +1,8 @@
 # workers.py
 
 import os
-import json
 import logging
 import tempfile
-from pathlib import Path
 import requests
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 from telegram_bot import TelegramBot

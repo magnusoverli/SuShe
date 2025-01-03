@@ -49,11 +49,15 @@ class ComboBoxDelegate(QStyledItemDelegate):
     """
     A delegate that provides a QComboBox editor for table cells.
     """
-    def __init__(self, items, parent=None):
+    def __init__(self, items, parent=None, highlight_color=Qt.GlobalColor.darkYellow):
         super().__init__(parent)
         self.items = items
+        self.highlight_color = highlight_color
 
     def createEditor(self, parent, option, index):
+        return self.create_combobox_editor(parent)
+
+    def create_combobox_editor(self, parent):
         comboBox = QComboBox(parent)
         comboBox.setEditable(True)
         comboBox.addItems(self.items)
@@ -271,6 +275,9 @@ class GenreSearchDelegate(QStyledItemDelegate):
         """
         Creates a QComboBox editor with autocomplete for genre selection.
         """
+        return self.create_combobox_editor(parent)
+
+    def create_combobox_editor(self, parent):
         comboBox = QComboBox(parent)
         comboBox.setEditable(True)
         comboBox.addItems(self.items)

@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QLocale
 import logging
 from datetime import datetime
 import os
+from delegates import ComboBoxDelegate  # Import the ComboBoxDelegate
 
 # Assuming ImageWidget is defined elsewhere or needs to be imported
 # If ImageWidget is in main.py, consider moving it to a utilities module or keep it in main.py
@@ -147,8 +148,7 @@ class ManualAddAlbumDialog(QDialog):
         countryLayout = QHBoxLayout()
         countryLabel = QLabel("Country:", self)
         countryLayout.addWidget(countryLabel)
-        self.countryComboBox = QComboBox(self)
-        self.countryComboBox.addItems(self.parent().countries)
+        self.countryComboBox = self.create_combobox_editor(self)
         countryLayout.addWidget(self.countryComboBox)
         layout.addLayout(countryLayout)
 
@@ -156,8 +156,7 @@ class ManualAddAlbumDialog(QDialog):
         genre1Layout = QHBoxLayout()
         genre1Label = QLabel("Genre 1:", self)
         genre1Layout.addWidget(genre1Label)
-        self.genre1ComboBox = QComboBox(self)
-        self.genre1ComboBox.addItems(self.parent().genres)
+        self.genre1ComboBox = self.create_combobox_editor(self)
         genre1Layout.addWidget(self.genre1ComboBox)
         layout.addLayout(genre1Layout)
 
@@ -165,8 +164,7 @@ class ManualAddAlbumDialog(QDialog):
         genre2Layout = QHBoxLayout()
         genre2Label = QLabel("Genre 2:", self)
         genre2Layout.addWidget(genre2Label)
-        self.genre2ComboBox = QComboBox(self)
-        self.genre2ComboBox.addItems(self.parent().genres)
+        self.genre2ComboBox = self.create_combobox_editor(self)
         genre2Layout.addWidget(self.genre2ComboBox)
         layout.addLayout(genre2Layout)
 
@@ -185,6 +183,11 @@ class ManualAddAlbumDialog(QDialog):
         layout.addWidget(self.submitButton)
 
         self.setLayout(layout)
+
+    def create_combobox_editor(self, parent):
+        items = self.parent().countries if parent == self.countryComboBox else self.parent().genres
+        delegate = ComboBoxDelegate(items, parent)
+        return delegate.create_combobox_editor(parent)
 
     def browse_cover_image(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Cover Image", "", "Image Files (*.png *.jpg *.bmp)")
