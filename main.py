@@ -118,11 +118,21 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.bot_token = None
         self.chat_id = None
         self.message_thread_id = None
+
+        # Initialize GitHub attributes to None
+        self.github_token = None
+        self.github_owner = None
+        self.github_repo = None
+
+        self.preferred_music_player = 'Spotify'  # Initialize with default value
         self.dataChanged = False
 
         # Initialize search-related variables
         self.matches = []
         self.current_match_index = -1
+
+        # Proceed with initialization
+        self.perform_initialization()
 
     def perform_initialization(self):
         # Initialize UI and other components
@@ -222,9 +232,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     self.message_thread_id_input.setText(self.message_thread_id)
 
                     # Load GitHub credentials
-                    self.github_token = config.get('github', {}).get('personal_access_token', '')
-                    self.github_owner = config.get('github', {}).get('owner', '')
-                    self.github_repo = config.get('github', {}).get('repo', '')
+                    github_config = config.get('github', {})
+                    self.github_token = github_config.get('personal_access_token', '')
+                    self.github_owner = github_config.get('owner', '')
+                    self.github_repo = github_config.get('repo', '')
+
+                    # Optionally, log a warning if GitHub credentials are missing
+                    if not all([self.github_token, self.github_owner, self.github_repo]):
+                        logging.warning("Incomplete GitHub credentials. GitHub integration features will be disabled.")
 
                     # Load Preferred Music Player
                     self.preferred_music_player = config.get('application', {}).get('preferred_music_player', 'Spotify')
