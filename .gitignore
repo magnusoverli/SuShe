@@ -16,3 +16,9 @@ ENV/
 installer/
 build/
 dist/
+
+# Ignore Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
