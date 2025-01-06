@@ -238,6 +238,18 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         else:
             logging.warning("config.json not found. Telegram submission will not work.")
             QMessageBox.warning(self, "Configuration Missing", "config.json not found. Telegram submission will not work.")
+            # Create config.json from template
+            template_path = resource_path('config_template.json')
+            try:
+                with open(template_path, 'r') as template_file:
+                    default_config = json.load(template_file)
+                with open(config_path, 'w') as config_file:
+                    json.dump(default_config, config_file, indent=4)
+                logging.info("Default config.json created from template.")
+                QMessageBox.information(self, "Configuration Created", "Default config.json created from template.")
+            except Exception as e:
+                logging.error(f"Failed to create default config.json: {e}")
+                QMessageBox.critical(self, "Configuration Error", f"Failed to create default config.json: {e}")
 
     def check_for_updates(self):
         if not all([self.github_token, self.github_owner, self.github_repo]):
