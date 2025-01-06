@@ -253,59 +253,81 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 QMessageBox.critical(self, "Configuration Error", f"Failed to create default config.json: {e}")
 
     def check_for_updates(self):
-        if not all([self.github_token, self.github_owner, self.github_repo]):
-            logging.warning("GitHub credentials are missing. Update check will not proceed.")
+        # Ensure that GitHub owner and repo are set
+        if not all([self.github_owner, self.github_repo]):
+            logging.warning("GitHub owner or repository name is missing. Aborting update check.")
             return True  # Proceed to show the main window
 
+        logging.debug("Starting update check...")
         current_version = self.version
+        logging.debug(f"Current application version: {current_version}")
+
         latest_version, download_url, release_notes_url = self.get_latest_github_release()
 
-        if latest_version and download_url:
-            from packaging import version
-            if version.parse(latest_version) > version.parse(current_version):
-                logging.info(f"A new version {latest_version} is available.")
-                update_dialog = UpdateDialog(latest_version, current_version, release_notes_url)
-                reply = update_dialog.exec()
+        if latest_version:
+            try:
+                from packaging import version
+                if version.parse(latest_version) > version.parse(current_version):
+                    logging.info(f"A new version {latest_version} is available.")
+                    if download_url:
+                        update_dialog = UpdateDialog(latest_version, current_version, release_notes_url)
+                        reply = update_dialog.exec()
 
-                if reply == QDialog.DialogCode.Accepted:
-                    self.download_and_install_update(download_url)
-                    # User chose to download the update; do not show the main window
-                    return False
+                        if reply == QDialog.DialogCode.Accepted:
+                            logging.info("User accepted the update. Initiating download.")
+                            self.download_and_install_update(download_url)
+                            return False  # Do not show the main window as update is being downloaded
+                        else:
+                            logging.info("User declined the update.")
+                    else:
+                        logging.warning("New version available but no executable asset found for download.")
+                        QMessageBox.warning(
+                            self,
+                            "Update Available",
+                            f"A new version ({latest_version}) is available, but no downloadable asset was found."
+                        )
                 else:
-                    logging.info("User chose not to update.")
+                    logging.info("You are running the latest version.")
+            except Exception as e:
+                logging.error(f"Error comparing versions: {e}")
         else:
-            logging.error("Failed to fetch the latest release information.")
+            logging.error("Failed to retrieve the latest version information from GitHub.")
 
         return True  # Proceed to show the main window
 
     def get_latest_github_release(self):
         url = f"https://api.github.com/repos/{self.github_owner}/{self.github_repo}/releases/latest"
-        headers = {
-            "Authorization": f"token {self.github_token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
         try:
-            response = requests.get(url, headers=headers)
+            logging.debug(f"Fetching latest release from URL: {url}")
+            response = requests.get(url)
             response.raise_for_status()
             release_info = response.json()
+            
             latest_version = release_info.get('tag_name')
-            release_notes_url = release_info.get('html_url')  # URL to the release page with notes
             assets = release_info.get('assets', [])
-            if assets:
-                # Log the names of available assets
-                logging.info(f"Available assets in the release: {[asset['name'] for asset in assets]}")
-                # Find the asset that matches the expected installer name
-                for asset in assets:
-                    if asset['name'].endswith('.exe'):
-                        download_url = asset.get('url')  # Use 'url' for API endpoint
-                        return latest_version, download_url, release_notes_url
-                logging.error("No executable (.exe) assets found in the latest release.")
-                return None, None, release_notes_url
+            release_notes_url = release_info.get('html_url')  # Retain release notes URL
+            
+            logging.debug(f"Latest Version: {latest_version}")
+            logging.debug(f"Number of assets found: {len(assets)}")
+            
+            download_url = None
+            for asset in assets:
+                if asset['name'].endswith('.exe'):
+                    download_url = asset.get('browser_download_url')
+                    logging.debug(f"Found executable asset: {asset['name']}")
+                    break
+            
+            if download_url:
+                logging.info(f"Latest version {latest_version} found with executable asset.")
+                return latest_version, download_url, release_notes_url
             else:
-                logging.error("No assets found in the latest release.")
-                return None, None, release_notes_url
+                logging.warning("No executable (.exe) asset found in the latest release.")
+                return latest_version, None, release_notes_url
         except requests.exceptions.RequestException as e:
             logging.error(f"Error fetching latest release: {e}")
+            return None, None, None
+        except ValueError as e:
+            logging.error(f"Error parsing JSON response: {e}")
             return None, None, None
 
     def download_and_install_update(self, download_url):
