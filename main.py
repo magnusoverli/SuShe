@@ -651,6 +651,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.file_menu.addAction(log_viewer_action)
         log_viewer_action.triggered.connect(self.open_log_viewer)
 
+        # Add a separator between 'Close' and 'Submit via Telegram'
+        self.file_menu.addSeparator()
+
+        import_config_action = QAction("Import Config", self)
+        self.file_menu.addAction(import_config_action)
+        import_config_action.triggered.connect(self.import_config)
+
         # Add a separator before 'Quit' to group it separately
         self.file_menu.addSeparator()
 
@@ -741,6 +748,34 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         urls = event.mimeData().urls()  # Extract URLs from the event
         for url in urls:
             self.process_spotify_uri(url.toString())  # Process each URL
+
+    def import_config(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import Config", "", "JSON Files (*.json)"
+        )
+        if file_path:
+            try:
+                with open(file_path, 'r') as file:
+                    new_config = json.load(file)
+                
+                config_path = resource_path('config.json')
+                
+                # Backup existing config
+                if os.path.exists(config_path):
+                    backup_path = config_path + '.backup'
+                    os.rename(config_path, backup_path)
+                    logging.info(f"Existing config backed up to {backup_path}")
+                
+                # Save new config
+                with open(config_path, 'w') as file:
+                    json.dump(new_config, file, indent=4)
+                logging.info("Configuration imported successfully.")
+                
+                QMessageBox.information(self, "Import Success", "Configuration imported successfully.")
+                self.load_config()  # Reload settings to apply new config
+            except Exception as e:
+                logging.error(f"Failed to import config: {e}")
+                QMessageBox.critical(self, "Import Failed", f"Failed to import config: {e}")
 
     def setup_search_tab(self):
         layout = QVBoxLayout()
