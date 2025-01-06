@@ -1237,8 +1237,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         # Check if the album is already in the list
         is_album_in_list = False
         for row in range(self.album_table.rowCount()):
-            existing_album_label = self.album_table.cellWidget(row, 1)
-            if existing_album_label and existing_album_label.album_name == album_name:
+            existing_album_item = self.album_table.item(row, 1)
+            if existing_album_item and existing_album_item.text() == album_name:
                 is_album_in_list = True
                 break
 
@@ -1270,17 +1270,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.album_table.insertRow(row_position)
                 self.album_table.setItem(row_position, 0, QTableWidgetItem(main_artist_name))
 
-                # Create QLabel with hyperlink for the album name
-                album_label = QLabel()
-                album_url = self.get_album_url(album_id, main_artist_name, album_name)
-                album_label.setText(f'<a href="{album_url}">{album_name}</a>')
-                album_label.setOpenExternalLinks(False)
-                album_label.linkActivated.connect(self.open_album_url)
-                album_label.album_name = album_name
-                album_label.album_id = album_id
-                album_label.artist_name = main_artist_name
-
-                self.album_table.setCellWidget(row_position, 1, album_label)
+                # Use QTableWidgetItem for the album name
+                album_item = QTableWidgetItem(album_name)
+                album_item.setData(Qt.ItemDataRole.UserRole, album_id)  # Store album_id in UserRole
+                self.album_table.setItem(row_position, 1, album_item)
 
                 self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_formatted))
 
@@ -1382,12 +1375,23 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def show_context_menu(self, position):
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
+        open_album_action = context_menu.addAction("Open Album")  # Add "Open Album" option
         action = context_menu.exec(self.album_table.viewport().mapToGlobal(position))
 
         if action == remove_action:
             index = self.album_table.indexAt(position)
             if index.isValid():
                 self.remove_album(index.row())
+        elif action == open_album_action:  # Handle "Open Album" action
+            index = self.album_table.indexAt(position)
+            if index.isValid():
+                album_item = self.album_table.item(index.row(), 1)
+                if album_item:
+                    album_id = album_item.data(Qt.ItemDataRole.UserRole)
+                    artist_name = self.album_table.item(index.row(), 0).text()
+                    album_name = album_item.text()
+                    album_url = self.get_album_url(album_id, artist_name, album_name)
+                    self.open_album_url(album_url)
 
     def remove_album(self, row):
         # Verify if the row is within valid range before attempting to remove
@@ -1524,13 +1528,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
             artist = self.album_table.item(row, 0).text() if self.album_table.item(row, 0) else ""
 
-            album_label = self.album_table.cellWidget(row, 1)
-            if album_label and isinstance(album_label, QLabel):
-                album_name = album_label.album_name
-                album_id = album_label.album_id
+            album_item = self.album_table.item(row, 1)
+            if album_item:
+                album_name = album_item.text()
+                album_id = album_item.data(Qt.ItemDataRole.UserRole)
             else:
-                album_name = self.album_table.item(row, 1).text() if self.album_table.item(row, 1) else ""
-                album_id = ''
+                album_name = ""
+                album_id = ""
 
             release_date = self.album_table.item(row, 2).text() if self.album_table.item(row, 2) else ""
 
@@ -1602,15 +1606,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             artist_name = row_data.get("artist", "Unknown Artist")
             album_url = self.get_album_url(album_id, artist_name, album_name)
 
-            album_label = QLabel()
-            album_label.setText(f'<a href="{album_url}">{album_name}</a>')
-            album_label.setOpenExternalLinks(False)
-            album_label.linkActivated.connect(self.open_album_url)
-            album_label.album_name = album_name
-            album_label.album_id = album_id
-            album_label.artist_name = artist_name
-
-            self.album_table.setCellWidget(row_pos, 1, album_label)
+            album_item = QTableWidgetItem(album_name)
+            album_item.setData(Qt.ItemDataRole.UserRole, album_id)  # Store album_id in UserRole
+            self.album_table.setItem(row_pos, 1, album_item)
 
             release_date = row_data.get("release_date", "Unknown Release Date")
             self.album_table.setItem(row_pos, 2, QTableWidgetItem(release_date))
@@ -1698,15 +1696,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.insertRow(row_position)
         self.album_table.setItem(row_position, 0, QTableWidgetItem(artist))
 
-        album_label = QLabel()
-        album_label.album_name = album
-        album_label.artist_name = artist
-        album_label.album_id = ''  # No album_id for manually added albums
-        album_url = self.get_album_url('', artist, album)
-        album_label.setText(f'<a href="{album_url}">{album}</a>')
-        album_label.setOpenExternalLinks(False)
-        album_label.linkActivated.connect(self.open_album_url)
-        self.album_table.setCellWidget(row_position, 1, album_label)
+        album_item = QTableWidgetItem(album)
+        album_item.setData(Qt.ItemDataRole.UserRole, '')  # No album_id for manually added albums
+        self.album_table.setItem(row_position, 1, album_item)
 
         self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_display))
 
