@@ -116,6 +116,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.chat_id = None
         self.message_thread_id = None
         self.dataChanged = False
+        self.github_token = None  # Initialize github_token attribute
 
         # Initialize search-related variables
         self.matches = []
