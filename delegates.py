@@ -192,7 +192,6 @@ class SearchHighlightDelegate(QStyledItemDelegate):
             parent = self.parent()
             if parent is None:
                 logging.error("Delegate parent is None")
-                super().paint(painter, option, index)
                 return
 
             # Draw the background
@@ -245,10 +244,12 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                         x += segment_width
                 else:
                     # No matches, draw text normally
-                    super().paint(painter, option, index)
+                    painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                    painter.drawText(option.rect, Qt.AlignmentFlag.AlignLeft, data)
             else:
                 # No data, draw normally
-                super().paint(painter, option, index)
+                painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                painter.drawText(option.rect, Qt.AlignmentFlag.AlignLeft, "")
         except Exception as e:
             logging.error(f"Error in SearchHighlightDelegate.paint: {e}")
         finally:
