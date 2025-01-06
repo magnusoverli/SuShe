@@ -245,7 +245,7 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                         x += segment_width
                 else:
                     # No matches, draw text normally
-                    super().paint(painter, option, index)
+                    painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, data)
             else:
                 # No data, draw normally
                 super().paint(painter, option, index)
@@ -389,7 +389,7 @@ class GenreSearchDelegate(QStyledItemDelegate):
                         x += segment_width
                 else:
                     # No matches, draw text normally
-                    super().paint(painter, option, index)
+                    painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, data)
             else:
                 # No data, draw normally
                 super().paint(painter, option, index)
