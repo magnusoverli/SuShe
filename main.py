@@ -256,6 +256,20 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         else:
             logging.warning("config.json not found. Telegram submission will not work.")
             QMessageBox.warning(self, "Configuration Missing", "config.json not found. Telegram submission will not work.")
+            self.create_default_config()
+
+    def create_default_config(self):
+        config_template_path = resource_path('config_template.json')
+        config_path = resource_path('config.json')
+        try:
+            with open(config_template_path, 'r') as template_file:
+                config_template = json.load(template_file)
+            with open(config_path, 'w') as config_file:
+                json.dump(config_template, config_file, indent=4)
+            logging.info("Default config.json created successfully.")
+        except Exception as e:
+            logging.error(f"Failed to create default config.json: {e}")
+            QMessageBox.critical(self, "Configuration Error", f"Failed to create default config.json: {e}")
 
     def check_for_updates(self):
         if not all([self.github_token, self.github_owner, self.github_repo]):
@@ -425,6 +439,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         QTimer.singleShot(2000, self.notification_image_label.hide)
 
     def setup_menu_bar(self):
+        if hasattr(self, 'menu_bar_initialized') and self.menu_bar_initialized:
+            return
+
         self.menu_bar = self.menuBar()
         self.file_menu = self.menu_bar.addMenu("File")
         self.add_menu_actions()
@@ -441,6 +458,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         find_action.setShortcut("Ctrl+F")
         find_action.triggered.connect(self.show_search_bar)
         self.edit_menu.addAction(find_action)
+
+        self.menu_bar_initialized = True
 
     def show_search_bar(self):
         if not hasattr(self, 'search_widget'):
@@ -1284,7 +1303,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def get_album_url(self, album_id, artist_name, album_name):
         if self.preferred_music_player == 'Spotify':
-            if album_id:
+            if (album_id):
                 return f'spotify:album:{album_id}'
             else:
                 search_term = urllib.parse.quote(f'{artist_name} {album_name}')
