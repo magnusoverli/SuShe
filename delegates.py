@@ -194,6 +194,10 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                 logging.error("Delegate parent is None")
                 return
 
+            # Clear the previous drawing
+            painter.setClipRect(option.rect)
+            painter.fillRect(option.rect, option.palette.color(QPalette.ColorRole.Base))
+
             # Draw the background
             parent.style().drawPrimitive(
                 QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
