@@ -47,8 +47,7 @@ class ImageProcessor(QObject):
             if qt_image.isNull():
                 raise ValueError("Failed to convert image to QImage.")
             pixmap = QPixmap.fromImage(qt_image)
-            
-            logging.debug(f"Image processed to size: {self.size} and format: {self.format}")
+
             self.processing_finished.emit(base64_image, pixmap)
         except Exception as e:
             logging.error(f"Error processing image in thread: {e}")
@@ -192,4 +191,3 @@ class ImageWidget(QWidget):
                 )
                 self.scaled_pixmap_cache.set(size, scaled_pixmap)
                 self.label.setPixmap(scaled_pixmap)
-                logging.debug(f"Scaled pixmap to size: {size} and cached.")

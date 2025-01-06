@@ -57,6 +57,10 @@ def setup_logging():
     sys.excepthook = handle_exception
     logging.getLogger().setLevel(logging.DEBUG)
     logging.info("Logging setup complete")
+
+    # **Suppress Pillow's debug logs**
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+
     return text_edit_logger
 
 def resource_path(relative_path):
