@@ -6,6 +6,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QLocale
 import logging
 from datetime import datetime
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Assuming ImageWidget is defined elsewhere or needs to be imported
 # If ImageWidget is in main.py, consider moving it to a utilities module or keep it in main.py
@@ -288,3 +291,57 @@ class UpdateDialog(QDialog):
         # Connect Buttons
         self.yes_button.clicked.connect(self.accept)
         self.no_button.clicked.connect(self.reject)
+
+
+class GenreSubmitDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("Submit Genre")
+        layout = QVBoxLayout()
+
+        self.genreEdit = QTextEdit(self)
+        self.genreEdit.setPlaceholderText("Enter genres, one per line")
+        layout.addWidget(self.genreEdit)
+
+        self.submitBtn = QPushButton("Submit", self)
+        self.submitBtn.clicked.connect(self.onSubmit)
+        layout.addWidget(self.submitBtn)
+
+        self.setLayout(layout)
+
+    def onSubmit(self):
+        genres = self.genreEdit.toPlainText().strip()
+        if not genres:
+            QMessageBox.warning(self, "Input Error", "Please enter at least one genre.")
+            return
+
+        genre_list = [genre.strip().title() for genre in genres.split('\n') if genre.strip()]
+        formatted_genres = "\n".join(genre_list)
+
+        # Email configuration
+        sender_email = "your_email@example.com"
+        receiver_email = "magnus+genre@overli.dev"
+        subject = "Genre Submission"
+        body = f"Submitted Genres:\n\n{formatted_genres}"
+
+        # Create the email message
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = receiver_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        try:
+            # Send the email
+            with smtplib.SMTP('smtp.example.com', 587) as server:
+                server.starttls()
+                server.login(sender_email, "your_password")
+                server.send_message(msg)
+
+            QMessageBox.information(self, "Success", "Genres submitted successfully.")
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to submit genres. Error: {e}")

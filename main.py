@@ -22,7 +22,7 @@ import subprocess
 
 # Import worker classes from workers.py
 
-from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog
+from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog, GenreSubmitDialog
 from workers import DownloadWorker, SubmitWorker, Worker
 from image_handler import ImageWidget
 
@@ -462,6 +462,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         find_action.setShortcut("Ctrl+F")
         find_action.triggered.connect(self.show_search_bar)
         self.edit_menu.addAction(find_action)
+
+        # Add 'Submit Genre' action to 'Edit' menu
+        submit_genre_action = QAction("Submit Genre", self)
+        submit_genre_action.triggered.connect(self.open_genre_submit_dialog)
+        self.edit_menu.addAction(submit_genre_action)
 
     def show_search_bar(self):
         if not hasattr(self, 'search_widget'):
@@ -1792,6 +1797,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
+
+    def open_genre_submit_dialog(self):
+        dialog = GenreSubmitDialog(self)
+        dialog.exec()
 
 if __name__ == "__main__":
     print("Starting application...")
