@@ -6,7 +6,8 @@ SuShe is a very basic tool, aimed at creating rich and coherent "album-of-the-ye
 
 ## Background
 
-SuShe (SuperSheet) was born out of the need to standardize album-of-year award lists. Myself and a group of like minded people where arranging the annual Metal Awards, and saw the need to have the members' lists in a more standadrized form.
+SuShe (SuperSheet) was born out of the need to standardize album-of-year award lists.
+Myself and a group of like minded people are hosting the annual "Metal Awards", and see the need to have the members' lists in a more standadrized form.
 This lead to several tests with Excel and Google Sheets, but nothing quite fit the bill.
 What we saw as the most pressing matter was agreeing on genres. A single album may have as many as 5-6 genres associated with them, and this made it hard to get lists where all albums where listed with the same genres.
 Syntax for (complex) band names and album names was also a challenge, but less so.
