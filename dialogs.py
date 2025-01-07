@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QLocale
 import logging
 from datetime import datetime
 import os
+import requests
 
 # Assuming ImageWidget is defined elsewhere or needs to be imported
 # If ImageWidget is in main.py, consider moving it to a utilities module or keep it in main.py
@@ -288,3 +289,84 @@ class UpdateDialog(QDialog):
         # Connect Buttons
         self.yes_button.clicked.connect(self.accept)
         self.no_button.clicked.connect(self.reject)
+
+class SendGenreDialog(QDialog):
+    """
+    Dialog window to allow users to send in genre suggestions.
+    Users can input up to five genres and optional notes.
+    """
+    def __init__(self, webhook_url, parent=None):
+        super().__init__(parent)
+        self.webhook_url = webhook_url
+        self.setWindowTitle("Send in Genre")
+        self.setFixedSize(400, 350)  # Adjust size as needed
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+
+        # Instruction Label
+        instruction_label = QLabel("Enter up to 5 genres:")
+        layout.addWidget(instruction_label)
+
+        # Genre Input Fields
+        self.genre_inputs = []
+        for i in range(5):
+            h_layout = QHBoxLayout()
+            label = QLabel(f"Genre {i + 1}:")
+            line_edit = QLineEdit()
+            self.genre_inputs.append(line_edit)
+            h_layout.addWidget(label)
+            h_layout.addWidget(line_edit)
+            layout.addLayout(h_layout)
+
+        # User Notes
+        notes_label = QLabel("User Notes (optional):")
+        layout.addWidget(notes_label)
+        self.notes_input = QLineEdit()
+        layout.addWidget(self.notes_input)
+
+        # Submit and Cancel Buttons
+        button_layout = QHBoxLayout()
+        self.submit_button = QPushButton("Submit")
+        self.cancel_button = QPushButton("Cancel")
+        self.submit_button.clicked.connect(self.submit)
+        self.cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(self.submit_button)
+        button_layout.addWidget(self.cancel_button)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+    def submit(self):
+        # Collect genres
+        genres = [le.text().strip() for le in self.genre_inputs if le.text().strip()]
+        if not genres:
+            QMessageBox.warning(self, "Input Error", "Please enter at least one genre.")
+            return
+
+        user_notes = self.notes_input.text().strip()
+
+        # Prepare JSON payload
+        payload = {
+            "genre_list": genres,
+            "user_notes": user_notes
+        }
+
+        # **DEBUG: Print the payload to console/log**
+        print("Submitting payload:", payload)
+        logging.debug(f"Submitting payload: {payload}")
+
+        # Send POST request
+        try:
+            response = requests.post(self.webhook_url, json=payload)
+            if response.status_code == 200 or response.status_code == 201:
+                QMessageBox.information(self, "Success", "Genres submitted successfully! The application developer will review them, and it is likely they will appear in the next update.")
+                logging.info(f"Genres submitted successfully: {payload}")
+                self.accept()
+            else:
+                logging.error(f"Webhook POST failed with status code {response.status_code}: {response.text}")
+                QMessageBox.critical(self, "Submission Failed", f"Failed to submit genres. Status Code: {response.status_code}")
+        except Exception as e:
+            logging.error(f"Exception occurred while submitting genres: {e}")
+            QMessageBox.critical(self, "Submission Error", f"An error occurred: {e}")

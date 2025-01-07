@@ -18,7 +18,10 @@
     },
     "github": {
         "personal_access_token": "",
-        "owner": "",
+        "owner": "magnusoverli",
         "repo": "SuShe"
+    },
+    "webhook": {
+        "url": "https://hook.eu2.make.com/g7t3udg4ojpvlr48ipuwfq8q345m5bjn"
     }
 }

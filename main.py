@@ -22,7 +22,7 @@ import subprocess
 
 # Import worker classes from workers.py
 
-from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog
+from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog, SendGenreDialog
 from workers import DownloadWorker, SubmitWorker, Worker
 from image_handler import ImageWidget
 
@@ -121,6 +121,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.message_thread_id = None
         self.dataChanged = False
         self.github_token = None  # Initialize github_token attribute
+        self.webhook_url = ""
 
         # Initialize search-related variables
         self.matches = []
@@ -236,6 +237,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     else:
                         self.preferred_music_player_combo.setCurrentIndex(0)
 
+                    # Load Webhook URL
+                    self.webhook_url = config.get('webhook', {}).get('url', '')
+                    if not self.webhook_url:
+                        logging.warning("Webhook URL not found in config.json.")
+
                     logging.info("Configuration loaded successfully.")
             except json.JSONDecodeError as e:
                 logging.error(f"Error parsing config.json: {e}")
@@ -255,6 +261,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             except Exception as e:
                 logging.error(f"Failed to create default config.json: {e}")
                 QMessageBox.critical(self, "Configuration Error", f"Failed to create default config.json: {e}")
+
+    def open_send_genre_dialog(self):
+        if not self.webhook_url:
+            QMessageBox.warning(self, "Webhook URL Missing", "Webhook URL is not configured. Please set it in the Settings tab.")
+            return
+
+        dialog = SendGenreDialog(self.webhook_url, self)
+        dialog.exec()
 
     def check_for_updates(self):
         # Ensure that GitHub owner and repo are set
@@ -658,6 +672,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.file_menu.addAction(import_config_action)
         import_config_action.triggered.connect(self.import_config)
 
+        request_genre_action = QAction("Request Genres", self)
+        request_genre_action.setShortcut("Ctrl+G")
+        request_genre_action.triggered.connect(self.open_send_genre_dialog)
+        self.file_menu.addAction(request_genre_action)
+
         # Add a separator before 'Quit' to group it separately
         self.file_menu.addSeparator()
 
@@ -918,6 +937,25 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         layout.addSpacing(30)
 
+        # Webhook Settings GroupBox
+        webhook_group_box = QGroupBox("Webhook Settings")
+        webhook_layout = QVBoxLayout()
+
+        # Webhook URL Input
+        webhook_url_label = QLabel("Webhook URL:")
+        webhook_layout.addWidget(webhook_url_label)
+        self.webhook_url_input = QLineEdit()
+        self.webhook_url_input.setText(getattr(self, 'webhook_url', ''))
+        webhook_layout.addWidget(self.webhook_url_input)
+
+        # Save Webhook Settings Button
+        save_webhook_button = QPushButton("Save Webhook Settings")
+        webhook_layout.addWidget(save_webhook_button)
+        save_webhook_button.clicked.connect(self.save_webhook_settings)
+
+        webhook_group_box.setLayout(webhook_layout)
+        layout.addWidget(webhook_group_box)
+
         # Spotify Credentials GroupBox
         spotify_credentials_group_box = QGroupBox("Spotify API Credentials")
         spotify_credentials_layout = QVBoxLayout()
@@ -1029,6 +1067,18 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except Exception as e:
             logging.error(f"Failed to save {section_name} settings: {e}")
             raise e  # Re-raise exception for the calling method to handle
+
+    def save_webhook_settings(self):
+        webhook_settings = {
+            "url": self.webhook_url_input.text().strip()
+        }
+        try:
+            self.save_config_section('webhook', webhook_settings)
+            self.webhook_url = webhook_settings["url"]
+            QMessageBox.information(self, "Success", "Webhook settings saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save Webhook settings. Details: {e}")
+
 
     def save_credentials(self):
         spotify_settings = {
