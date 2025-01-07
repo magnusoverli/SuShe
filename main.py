@@ -462,7 +462,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def setup_menu_bar(self):
         self.menu_bar = self.menuBar()
         self.file_menu = self.menu_bar.addMenu("File")
-        self.add_menu_actions()
         self.help_menu = self.menu_bar.addMenu("Help")
         self.help_menu.addAction("Help").triggered.connect(self.show_help)
 
@@ -476,6 +475,65 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         find_action.setShortcut("Ctrl+F")
         find_action.triggered.connect(self.show_search_bar)
         self.edit_menu.addAction(find_action)
+
+        save_action = self.file_menu.addAction("Save")
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.trigger_save_album_data)
+
+        save_as_action = self.file_menu.addAction("Save As...")
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.triggered.connect(self.trigger_save_as_album_data)
+
+        open_action = self.file_menu.addAction("Open")
+        open_action.setShortcut("Ctrl+O")
+        open_action.triggered.connect(self.trigger_load_album_data)
+
+        close_action = self.file_menu.addAction("Close File")
+        close_action.setShortcut("Ctrl+W")
+        close_action.triggered.connect(self.close_album_data)
+
+        # Move the 'Recent Files' submenu to just after 'Close'
+        self.recent_files_menu = self.file_menu.addMenu("Recent Files")
+        self.update_recent_files_menu()
+
+        # Add a separator between 'Close' and 'Submit via Telegram'
+        self.file_menu.addSeparator()
+
+        self.submitAction = QAction("Submit via Telegram", self)
+        self.file_menu.addAction(self.submitAction)
+        self.submitAction.triggered.connect(self.openSubmitDialog)
+
+        # Add a separator between 'Submit via Telegram' and 'Add Album Manually' if desired
+        # self.file_menu.addSeparator()
+
+        self.manualAddAlbumAction = QAction("Add Album Manually", self)
+        self.file_menu.addAction(self.manualAddAlbumAction)
+        self.manualAddAlbumAction.triggered.connect(self.open_manual_add_album_dialog)
+
+        log_viewer_action = QAction("View Logs", self)
+        self.file_menu.addAction(log_viewer_action)
+        log_viewer_action.triggered.connect(self.open_log_viewer)
+
+        # Add a separator between 'Close' and 'Submit via Telegram'
+        self.file_menu.addSeparator()
+
+        import_config_action = QAction("Import Config", self)
+        self.file_menu.addAction(import_config_action)
+        import_config_action.triggered.connect(self.import_config)
+
+        request_genre_action = QAction("Request Genres", self)
+        request_genre_action.setShortcut("Ctrl+G")
+        request_genre_action.triggered.connect(self.open_send_genre_dialog)
+        self.file_menu.addAction(request_genre_action)
+
+        # Add a separator before 'Quit' to group it separately
+        self.file_menu.addSeparator()
+
+        # Quit action
+        quit_action = QAction("Quit", self)
+        quit_action.setShortcut("Ctrl+Q")
+        quit_action.triggered.connect(self.close_application)
+        self.file_menu.addAction(quit_action)
 
     def show_search_bar(self):
         if not hasattr(self, 'search_widget'):
@@ -625,91 +683,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         else:
             QMessageBox.warning(self, "Error", "Help file not found. Please ensure 'help.md' is in the application directory.")
             logging.error("Help file 'help.md' not found.")
-
-    def add_menu_actions(self):
-        save_action = self.file_menu.addAction("Save")
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.trigger_save_album_data)
-
-        save_as_action = self.file_menu.addAction("Save As...")
-        save_as_action.setShortcut("Ctrl+Shift+S")
-        save_as_action.triggered.connect(self.trigger_save_as_album_data)
-
-        open_action = self.file_menu.addAction("Open")
-        open_action.setShortcut("Ctrl+O")
-        open_action.triggered.connect(self.trigger_load_album_data)
-
-        close_action = self.file_menu.addAction("Close File")
-        close_action.setShortcut("Ctrl+W")
-        close_action.triggered.connect(self.close_album_data)
-
-        # Move the 'Recent Files' submenu to just after 'Close'
-        self.recent_files_menu = self.file_menu.addMenu("Recent Files")
-        self.update_recent_files_menu()
-
-        # Add a separator between 'Close' and 'Submit via Telegram'
-        self.file_menu.addSeparator()
-
-        self.submitAction = QAction("Submit via Telegram", self)
-        self.file_menu.addAction(self.submitAction)
-        self.submitAction.triggered.connect(self.openSubmitDialog)
-
-        # Add a separator between 'Submit via Telegram' and 'Add Album Manually' if desired
-        # self.file_menu.addSeparator()
-
-        self.manualAddAlbumAction = QAction("Add Album Manually", self)
-        self.file_menu.addAction(self.manualAddAlbumAction)
-        self.manualAddAlbumAction.triggered.connect(self.open_manual_add_album_dialog)
-
-        log_viewer_action = QAction("View Logs", self)
-        self.file_menu.addAction(log_viewer_action)
-        log_viewer_action.triggered.connect(self.open_log_viewer)
-
-        # Add a separator between 'Close' and 'Submit via Telegram'
-        self.file_menu.addSeparator()
-
-        import_config_action = QAction("Import Config", self)
-        self.file_menu.addAction(import_config_action)
-        import_config_action.triggered.connect(self.import_config)
-
-        request_genre_action = QAction("Request Genres", self)
-        request_genre_action.setShortcut("Ctrl+G")
-        request_genre_action.triggered.connect(self.open_send_genre_dialog)
-        self.file_menu.addAction(request_genre_action)
-
-        # Add a separator before 'Quit' to group it separately
-        self.file_menu.addSeparator()
-
-        # Quit action
-        quit_action = QAction("Quit", self)
-        quit_action.setShortcut("Ctrl+Q")
-        quit_action.triggered.connect(self.close_application)
-        self.file_menu.addAction(quit_action)
-
-    def close_application(self):
-        self.close()
-
-    def setup_tabs(self):
-        self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
-
-        
-        self.album_list_tab = QWidget()
-        self.search_tab = QWidget()
-        self.settings_tab = QWidget()
-
-        
-        self.tabs.addTab(self.album_list_tab, "Album List")
-        self.tabs.addTab(self.search_tab, "Search Albums")
-        self.tabs.addTab(self.settings_tab, "Settings")
-
-        
-        self.setup_album_list_tab()
-        self.setup_search_tab()
-        self.setup_settings_tab()
-
-        # Set the current tab to the "Album List" tab
-        self.tabs.setCurrentWidget(self.album_list_tab)
 
     def openSubmitDialog(self):
         if self.dataChanged:
@@ -1842,6 +1815,22 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
+
+    def setup_tabs(self):
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
+
+        self.search_tab = QWidget()
+        self.album_list_tab = QWidget()
+        self.settings_tab = QWidget()
+
+        self.tabs.addTab(self.search_tab, "Search Albums")
+        self.tabs.addTab(self.album_list_tab, "Album List")
+        self.tabs.addTab(self.settings_tab, "Settings")
+
+        self.setup_search_tab()
+        self.setup_album_list_tab()
+        self.setup_settings_tab()
 
 if __name__ == "__main__":
     print("Starting application...")
