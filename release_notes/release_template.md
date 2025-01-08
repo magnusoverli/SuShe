@@ -1,6 +1,6 @@
 # 📦 Release Notes
 
-**📅 Release Date:** _<Insert Date>_
+**📅 Release Date:** _DD.MM.YYYY_
 
 ---
 
