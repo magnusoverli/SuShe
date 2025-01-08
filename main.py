@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QBrush
-from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl
+from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QSize
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -1622,6 +1622,94 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
         logging.debug(f"Album data saved to {file_path}. dataChanged set to False.")
 
+    def export_album_data_html(self):
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export to HTML", "", "HTML Files (*.html)"
+        )
+        if not file_path:
+            return
+
+        column_widths = {
+            "No.": "5px",
+            "Artist": "60px",
+            "Album": "60px",
+            "Release Date": "40px",
+            "Cover": "40px",
+            "Country": "60px",
+            "Genre 1": "80px",
+            "Genre 2": "80px",
+            "Rating": "20px",
+            "Comments": "150px"
+        }
+
+        # Build HTML
+        html_lines = [
+            "<!DOCTYPE html>",
+            "<html>",
+            "<head>",
+            "<meta charset='utf-8'>",
+            "<title>Exported Albums</title>",
+            "<style>",
+            "body { font-family: Arial, sans-serif; }",
+            "table { border-collapse: collapse; width: 100%; table-layout: fixed; }",
+            "th, td { border: 1px solid #ccc; padding: 8px; text-align: left; word-wrap: break-word; }",
+            "th { background-color: #f2f2f2; }",
+            "td img { display: block; margin: 0 auto; }",  # Center images in cells
+            "</style>",
+            "</head>",
+            "<body>",
+            "<h1>Album Export</h1>",
+            "<table>",
+            "<tr>"
+        ]
+
+        # Add table headers with defined widths, including "No."
+        headers = ["No.", "Artist", "Album", "Release Date", "Cover", "Country", "Genre 1", "Genre 2", "Rating", "Comments"]
+        for header in headers:
+            width = column_widths.get(header, "10%")
+            html_lines.append(f"<th style='width:{width};'>{header}</th>")
+        html_lines.append("</tr>")
+
+        for row in range(self.album_table.rowCount()):
+            no = row + 1  # Row number starting at 1
+            artist = self.album_table.item(row, 0).text() if self.album_table.item(row, 0) else ""
+            album = self.album_table.item(row, 1).text() if self.album_table.item(row, 1) else ""
+            release = self.album_table.item(row, 2).text() if self.album_table.item(row, 2) else ""
+            country = self.album_table.item(row, 4).text() if self.album_table.item(row, 4) else ""
+            genre1 = self.album_table.item(row, 5).text() if self.album_table.item(row, 5) else ""
+            genre2 = self.album_table.item(row, 6).text() if self.album_table.item(row, 6) else ""
+            rating = self.album_table.item(row, 7).text() if self.album_table.item(row, 7) else ""
+            comments = self.album_table.item(row, 8).text() if self.album_table.item(row, 8) else ""
+
+            image_widget = self.album_table.cellWidget(row, 3)
+            if image_widget and hasattr(image_widget, 'base64_image') and image_widget.base64_image:
+                img_tag = f'<img src="data:image/png;base64,{image_widget.base64_image}" width="100" />'
+            else:
+                img_tag = ""
+
+            html_lines.append("<tr>")
+            html_lines.append(f"<td>{no}</td>")
+            html_lines.append(f"<td>{artist}</td>")
+            html_lines.append(f"<td>{album}</td>")
+            html_lines.append(f"<td>{release}</td>")
+            html_lines.append(f"<td>{img_tag}</td>")
+            html_lines.append(f"<td>{country}</td>")
+            html_lines.append(f"<td>{genre1}</td>")
+            html_lines.append(f"<td>{genre2}</td>")
+            html_lines.append(f"<td>{rating}</td>")
+            html_lines.append(f"<td>{comments}</td>")
+            html_lines.append("</tr>")
+
+        html_lines.append("</table>")
+        html_lines.append("</body></html>")
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(html_lines))
+            QMessageBox.information(self, "Export Complete", f"Exported to {file_path}")
+        except Exception as e:
+            logging.error(f"Failed to export to HTML: {e}")
+            QMessageBox.critical(self, "Export Failed", f"Failed to export to HTML: {e}")
 
     def load_album_data(self, file_path):
         try:
