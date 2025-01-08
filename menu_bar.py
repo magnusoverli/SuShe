@@ -2,129 +2,91 @@
 
 class MenuBar:
     def __init__(self, main_window):
-        """
-        Initialize the MenuBar with a reference to the main window.
-
-        :param main_window: The instance of the main application window.
-        """
         self.main_window = main_window
         self.setup_menu_bar()
 
     def setup_menu_bar(self):
-        self.main_window.menu_bar = self.main_window.menuBar()
+        bar = self.main_window.menuBar()
+
+        file_menu = bar.addMenu("File")
         
-        # File Menu
-        self.main_window.file_menu = self.main_window.menu_bar.addMenu("File")
-        
-        # Save Action
-        save_action = self.main_window.create_action(
-            name="Save",
-            shortcut="Ctrl+S",
-            triggered=self.main_window.trigger_save_album_data
-        )
-        self.main_window.file_menu.addAction(save_action)
-        
-        # Save As Action
-        save_as_action = self.main_window.create_action(
-            name="Save As...",
-            shortcut="Ctrl+Shift+S",
-            triggered=self.main_window.trigger_save_as_album_data
-        )
-        self.main_window.file_menu.addAction(save_as_action)
-        
-        # Open Action
         open_action = self.main_window.create_action(
-            name="Open",
-            shortcut="Ctrl+O",
-            triggered=self.main_window.trigger_load_album_data
+            "Open", "Ctrl+O", triggered=self.main_window.trigger_load_album_data
         )
-        self.main_window.file_menu.addAction(open_action)
-        
-        # Close File Action
+        file_menu.addAction(open_action)
+
+        save_action = self.main_window.create_action(
+            "Save", "Ctrl+S", triggered=self.main_window.trigger_save_album_data
+        )
+        file_menu.addAction(save_action)
+
+        save_as_action = self.main_window.create_action(
+            "Save As...", "Ctrl+Shift+S", triggered=self.main_window.trigger_save_as_album_data
+        )
+        file_menu.addAction(save_as_action)
+
+        export_list_action = self.main_window.create_action(
+            "Export List", "Ctrl+Shift+E", triggered=self.main_window.export_album_data_html
+        )
+        file_menu.addAction(export_list_action)
+
         close_action = self.main_window.create_action(
-            name="Close File",
-            shortcut="Ctrl+W",
-            triggered=self.main_window.close_album_data
+            "Close File", "Ctrl+W", triggered=self.main_window.close_album_data
         )
-        self.main_window.file_menu.addAction(close_action)
-        
-        # Recent Files Submenu
-        self.main_window.recent_files_menu = self.main_window.file_menu.addMenu("Recent Files")
+        file_menu.addAction(close_action)
+
+        self.main_window.recent_files_menu = file_menu.addMenu("Recent Files")
         self.main_window.update_recent_files_menu()
-        
-        # Separator
-        self.main_window.file_menu.addSeparator()
-        
-        # Submit via Telegram Action
+
+        file_menu.addSeparator()
+
         submit_action = self.main_window.create_action(
-            name="Submit via Telegram",
-            triggered=self.main_window.openSubmitDialog
+            "Submit via Telegram", triggered=self.main_window.openSubmitDialog
         )
-        self.main_window.file_menu.addAction(submit_action)
-        
-        # Add Album Manually Action
+        file_menu.addAction(submit_action)
+
         manual_add_album_action = self.main_window.create_action(
-            name="Add Album Manually",
-            triggered=self.main_window.open_manual_add_album_dialog
+            "Add Album Manually", triggered=self.main_window.open_manual_add_album_dialog
         )
-        self.main_window.file_menu.addAction(manual_add_album_action)
-        
-        # View Logs Action
+        file_menu.addAction(manual_add_album_action)
+
         view_logs_action = self.main_window.create_action(
-            name="View Logs",
-            triggered=self.main_window.open_log_viewer
+            "View Logs", triggered=self.main_window.open_log_viewer
         )
-        self.main_window.file_menu.addAction(view_logs_action)
-        
-        # Separator
-        self.main_window.file_menu.addSeparator()
-        
-        # Import Config Action
+        file_menu.addAction(view_logs_action)
+
+        file_menu.addSeparator()
+
         import_config_action = self.main_window.create_action(
-            name="Import Config",
-            triggered=self.main_window.import_config
+            "Import Config", triggered=self.main_window.import_config
         )
-        self.main_window.file_menu.addAction(import_config_action)
-        
-        # Request Genres Action
+        file_menu.addAction(import_config_action)
+
         request_genres_action = self.main_window.create_action(
-            name="Request Genres",
-            shortcut="Ctrl+G",
-            triggered=self.main_window.open_send_genre_dialog
+            "Request Genres", "Ctrl+G", triggered=self.main_window.open_send_genre_dialog
         )
-        self.main_window.file_menu.addAction(request_genres_action)
-        
-        # Find Action
+        file_menu.addAction(request_genres_action)
+
         find_action = self.main_window.create_action(
-            name="Find",
-            shortcut="Ctrl+F",
-            triggered=self.main_window.show_search_bar
+            "Find", "Ctrl+F", triggered=self.main_window.show_search_bar
         )
-        self.main_window.file_menu.addAction(find_action)
-        
-        # Separator
-        self.main_window.file_menu.addSeparator()
-        
-        # Quit Action
+        file_menu.addAction(find_action)
+
+        file_menu.addSeparator()
+
         quit_action = self.main_window.create_action(
-            name="Quit",
-            shortcut="Ctrl+Q",
-            triggered=self.main_window.close_application
+            "Quit", "Ctrl+Q", triggered=self.main_window.close_application
         )
-        self.main_window.file_menu.addAction(quit_action)
-        
-        # Help Menu
-        self.main_window.help_menu = self.main_window.menu_bar.addMenu("Help")
+        file_menu.addAction(quit_action)
+
+        help_menu = bar.addMenu("Help")
         help_action = self.main_window.create_action(
-            name="Help",
-            triggered=self.main_window.show_help
+            "Help", triggered=self.main_window.show_help
         )
-        self.main_window.help_menu.addAction(help_action)
-        
-        # About Menu
-        self.main_window.about_menu = self.main_window.menu_bar.addMenu("About")
+        help_menu.addAction(help_action)
+
+        about_menu = bar.addMenu("About")
         about_action = self.main_window.create_action(
-            name="About SuShe",
-            triggered=self.main_window.show_about_dialog
+            "About SuShe", triggered=self.main_window.show_about_dialog
         )
-        self.main_window.about_menu.addAction(about_action)
+        about_menu.addAction(about_action)
