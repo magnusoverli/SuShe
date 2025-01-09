@@ -114,37 +114,37 @@ QLineEdit {
 
 /* QMenuBar Styles */
 QMenuBar {
-    background-color: #4A4A4C;
+    background-color: #5A5A5C;
     color: white;
     border: 1px solid #555;
     width: 100%;
 }
 
 QMenuBar::item {
-    background-color: #4A4A4C;
+    background-color: #5A5A5C;
     color: white;
 }
 
 QMenuBar::item:selected { /* when selected using mouse or keyboard */
-    background-color: #A0A0A0;
+    background-color: #B0B0B0;
     border-radius: 5px;
 }
 
 /* QMenu Styles */
 QMenu {
-    background-color: #4A4A4C;
+    background-color: #5A5A5C;
     color: white;
     border: 1px solid #555;
 }
 
 QMenu::item {
-    background-color: #4A4A4C;
+    background-color: #5A5A5C;
     color: white;
     padding: 4px 20px; /* Adjusted padding: vertical | horizontal */
 }
 
 QMenu::item:selected { /* when hovered over */
-    background-color: #A0A0A0;
+    background-color: #B0B0B0;
     border-radius: 5px;
 }
 
