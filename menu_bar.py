@@ -1,13 +1,19 @@
 # menu_bar.py
 
+from PyQt6.QtWidgets import QMenuBar, QSizePolicy
+
 class MenuBar:
     def __init__(self, main_window):
         self.main_window = main_window
         self.setup_menu_bar()
 
     def setup_menu_bar(self):
-        bar = self.main_window.menuBar()
+        # Create a menu bar and ensure it fills the width
+        bar = QMenuBar(self.main_window)
+        bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.main_window.setMenuBar(bar)
 
+        # File menu
         file_menu = bar.addMenu("File")
         
         open_action = self.main_window.create_action(
@@ -79,12 +85,14 @@ class MenuBar:
         )
         file_menu.addAction(quit_action)
 
+        # Help menu
         help_menu = bar.addMenu("Help")
         help_action = self.main_window.create_action(
             "Help", triggered=self.main_window.show_help
         )
         help_menu.addAction(help_action)
 
+        # About menu
         about_menu = bar.addMenu("About")
         about_action = self.main_window.create_action(
             "About SuShe", triggered=self.main_window.show_about_dialog
