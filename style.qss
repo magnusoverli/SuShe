@@ -114,13 +114,14 @@ QLineEdit {
 
 /* QMenuBar Styles */
 QMenuBar {
-    background-color: #3A3A3C;
+    background-color: #4A4A4C;
     color: white;
     border: 1px solid #555;
+    width: 100%;
 }
 
 QMenuBar::item {
-    background-color: #3A3A3C;
+    background-color: #4A4A4C;
     color: white;
 }
 
@@ -131,13 +132,13 @@ QMenuBar::item:selected { /* when selected using mouse or keyboard */
 
 /* QMenu Styles */
 QMenu {
-    background-color: #3A3A3C;
+    background-color: #4A4A4C;
     color: white;
     border: 1px solid #555;
 }
 
 QMenu::item {
-    background-color: #3A3A3C;
+    background-color: #4A4A4C;
     color: white;
     padding: 4px 20px; /* Adjusted padding: vertical | horizontal */
 }

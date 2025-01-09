@@ -7,6 +7,7 @@ class MenuBar:
 
     def setup_menu_bar(self):
         bar = self.main_window.menuBar()
+        bar.setFixedWidth(self.main_window.width())
 
         file_menu = bar.addMenu("File")
         
