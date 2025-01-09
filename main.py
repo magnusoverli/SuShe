@@ -121,7 +121,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.chat_id = None
         self.message_thread_id = None
         self.dataChanged = False
-        self.github_token = None  # Initialize github_token attribute
+        self.github_token = None
+        self.github_owner = None
         self.webhook_url = ""
 
         # Initialize search-related variables
