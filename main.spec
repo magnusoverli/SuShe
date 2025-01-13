@@ -21,7 +21,6 @@ datas = [
     ('help.md', '.'),
     ('points.json', '.'),
     ('logos', 'logos'),
-    ('config.json', '.'),
     ('version.txt', '.'),
 ]
 
