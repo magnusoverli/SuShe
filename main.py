@@ -123,6 +123,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.dataChanged = False
         self.github_token = None
         self.github_owner = None
+        self.github_repo = ''
         self.webhook_url = ""
 
         # Initialize search-related variables
