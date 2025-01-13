@@ -112,6 +112,7 @@ class QTextEditLogger(logging.Handler, QObject):
 class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
         super().__init__()
+        self.statusBar().showMessage("Welcome to SuShe!", 5000)
         self.text_edit_logger = text_edit_logger
         self.version = self.get_app_version()
         self.current_file_path = None
@@ -219,7 +220,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.log_viewer_dialog.show()
 
     def load_config(self):
-        config_path = resource_path('config.json')
+        config_path = self.get_user_data_path('config.json')
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as file:
@@ -738,18 +739,28 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self, "Import Config", "", "JSON Files (*.json)"
         )
         if file_path:
+            logging.debug(f"Selected config file for import: {file_path}")
             try:
                 with open(file_path, 'r') as file:
                     new_config = json.load(file)
-                
-                config_path = resource_path('config.json')
-                
+                logging.debug("Config file loaded successfully.")
+
+                config_path = self.get_user_data_path('config.json')
+                logging.debug(f"Importing config to: {config_path}")
+
                 with open(config_path, 'w') as file:
                     json.dump(new_config, file, indent=4)
                 logging.info("Configuration imported successfully.")
+
+                self.load_config()
+                logging.debug("Configuration reloaded after import.")
+
+                QTimer.singleShot(0, lambda: self.statusBar().showMessage("Configuration imported successfully.", 5000))
+                logging.debug("Status bar message scheduled.")
+
+                self.tabs.setCurrentWidget(self.settings_tab)
+                logging.debug("Navigated to Settings tab after import.")
                 
-                QMessageBox.information(self, "Import Success", "Configuration imported successfully.")
-                self.load_config()  # Reload settings to apply new config
             except Exception as e:
                 logging.error(f"Failed to import config: {e}")
                 QMessageBox.critical(self, "Import Failed", f"Failed to import config: {e}")
