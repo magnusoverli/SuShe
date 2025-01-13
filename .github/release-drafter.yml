@@ -1,0 +1,46 @@
+name-template: 'Release v$NEXT_PATCH_VERSION - $DATE'
+tag-template: 'v$NEXT_PATCH_VERSION'
+categories:
+  - title: '✨ New Features'
+    include:
+      - feat:
+  - title: '🐛 Bug Fixes'
+    include:
+      - fix:
+  - title: '🔧 Other Improvements'
+    include:
+      - chore:
+change-template: '- $MESSAGE by @$AUTHOR'
+template: |
+  # 📦 Release Notes
+
+  **📅 Release Date:** _$DATE_
+
+  ---
+
+  ## 🚀 What's New
+
+  ### ✨ New Features
+  $CHANGES_FOR_CATEGORY{✨ New Features}
+
+  ### 🐛 Bug Fixes
+  $CHANGES_FOR_CATEGORY{🐛 Bug Fixes}
+
+  ---
+
+  ## 🔧 Other Improvements
+  $CHANGES_FOR_CATEGORY{🔧 Other Improvements}
+
+  ---
+
+  ## ⚠️ Known Issues
+  - No known issues at this time.
+
+  ---
+
+  ## ℹ️ Additional Information
+  - 
+
+  ---
+
+  *If you have any questions or feedback, feel free to [contact me](mailto:magnus@overli.dev).*
