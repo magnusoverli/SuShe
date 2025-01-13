@@ -2,14 +2,14 @@ name-template: 'Release v$NEXT_PATCH_VERSION - $DATE'
 tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
   - title: '✨ New Features'
-    include:
-      - feat:
+    labels:
+      - 'feat'
   - title: '🐛 Bug Fixes'
-    include:
-      - fix:
+    labels:
+      - 'fix'
   - title: '🔧 Other Improvements'
-    include:
-      - chore:
+    labels:
+      - 'chore'
   - title: 'Uncategorized Changes'  # Catch-all for uncategorized commits
     labels: []  # This ensures this category handles all commits with no specific prefix or label
 change-template: '- $MESSAGE by @$AUTHOR'
