@@ -12,10 +12,10 @@ categories:
       - 'bugfix'
       - 'bug'
   - title: '🧰 Maintenance'
-    labels:
+    labels:          # Changed from 'label' to 'labels'
       - 'chore'
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
-change-title-escapes: '\<*_&' 
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 version-resolver:
   major:
     labels:
@@ -31,10 +31,3 @@ template: |
   ## Changes
 
   $CHANGES
-type-resolver:
-  - type: feature
-    regex: ^feat(\(.*\))?: .+
-  - type: fix
-    regex: ^fix(\(.*\))?: .+
-  - type: chore
-    regex: ^chore(\(.*\))?: .+
