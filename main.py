@@ -144,6 +144,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.dataChanged = False
 
         # Perform the update check and decide whether to show the main window
+        # This is a test comment
         should_show = self.check_for_updates()
 
         if should_show:
