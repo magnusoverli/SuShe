@@ -111,7 +111,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def __init__(self, text_edit_logger):
         super().__init__()
         self.text_edit_logger = text_edit_logger
-        self.version = self.get_app_version() # Get the application version
+        self.version = self.get_app_version()
         self.current_file_path = None
         self.last_opened_file = None
         self.recent_files = []
