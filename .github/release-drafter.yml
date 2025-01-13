@@ -29,12 +29,12 @@ template: |
   $CHANGES_FOR_CATEGORY{"Bug Fixes"}
 
   ---
-  
+
   ## 🔧 Other Improvements
   $CHANGES_FOR_CATEGORY{"Other Improvements"}
 
   ---
-  
+
   ## ⚠️ Known Issues
   - No known issues at this time.
 
@@ -46,3 +46,6 @@ template: |
   ---
 
   *If you have any questions or feedback, feel free to [contact me](mailto:magnus@overli.dev).*
+
+include:
+  - commit
