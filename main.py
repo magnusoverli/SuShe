@@ -102,7 +102,6 @@ class QTextEditLogger(logging.Handler, QObject):
 
     def set_log_viewer(self, log_viewer):
         self.log_viewer = log_viewer
-        # Flush the buffered messages to the log viewer
         for msg in self.buffer:
             self.log_viewer.append_log(msg)
         self.buffer.clear()
