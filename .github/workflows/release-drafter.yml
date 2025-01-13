@@ -6,10 +6,11 @@ on:
 
 jobs:
   update_release_draft:
+    premissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Run Release Drafter
-        uses: release-drafter/release-drafter@v6
+      - uses: release-drafter/release-drafter@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
