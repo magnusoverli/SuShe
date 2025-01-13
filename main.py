@@ -258,6 +258,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     # **Update the UI field with the loaded webhook URL**
                     if hasattr(self, 'webhook_url_input'):
                         self.webhook_url_input.setText(self.webhook_url)
+                        logging.debug(f"Webhook URL input set to: {self.webhook_url}")
+                    else:
+                        logging.error("webhook_url_input UI element not found.")
 
                     logging.info("Configuration loaded successfully.")
             except json.JSONDecodeError as e:
@@ -265,8 +268,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 QMessageBox.critical(self, "Configuration Error", "Failed to parse config.json. Please check the file format.")
         else:
             logging.warning("config.json not found. Telegram submission will not work.")
-            QMessageBox.warning(self, "Configuration Missing", "config.json not found. Telegram submission will not work.")
-            # Create config.json from template
+            # **Create config.json from template**
             template_path = resource_path('config_template.json')
             try:
                 with open(template_path, 'r') as template_file:
@@ -274,7 +276,31 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 with open(config_path, 'w') as config_file:
                     json.dump(default_config, config_file, indent=4)
                 logging.info("Default config.json created from template.")
-                QMessageBox.information(self, "Configuration Created", "Default config.json created from template.")
+
+                # **Show a single QMessageBox with options**
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Icon.Warning)
+                msg_box.setWindowTitle("Configuration Missing")
+                msg_box.setText("No configuration file found. A default config.json has been created from the template.")
+                msg_box.setInformativeText("You can input the required values in the Settings tab or import an existing config.")
+
+                # **Add buttons to the dialog**
+                go_to_settings_button = msg_box.addButton("Go to Settings", QMessageBox.ButtonRole.AcceptRole)
+                import_config_button = msg_box.addButton("Import Config", QMessageBox.ButtonRole.ActionRole)
+                cancel_button = msg_box.addButton(QMessageBox.StandardButton.Cancel)
+
+                # **Execute the dialog and handle user response**
+                msg_box.exec()
+
+                if msg_box.clickedButton() == go_to_settings_button:
+                    # **Navigate to the Settings tab**
+                    self.tabs.setCurrentWidget(self.settings_tab)
+                elif msg_box.clickedButton() == import_config_button:
+                    # **Open the Import Config dialog**
+                    self.import_config()
+                else:
+                    # **User chose to cancel or closed the dialog**
+                    pass
             except Exception as e:
                 logging.error(f"Failed to create default config.json: {e}")
                 QMessageBox.critical(self, "Configuration Error", f"Failed to create default config.json: {e}")
