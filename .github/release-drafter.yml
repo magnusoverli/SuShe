@@ -1,17 +1,17 @@
 name-template: 'Release v$NEXT_PATCH_VERSION - $DATE'
 tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
-  - title: '✨ New Features'
+  - title: 'New Features'
     labels:
       - 'feat'
-  - title: '🐛 Bug Fixes'
+  - title: 'Bug Fixes'
     labels:
       - 'fix'
-  - title: '🔧 Other Improvements'
+  - title: 'Other Improvements'
     labels:
       - 'chore'
-  - title: 'Uncategorized Changes'  # Catch-all for uncategorized commits
-    labels: []  # This ensures this category handles all commits with no specific prefix or label
+  - title: 'Uncategorized Changes'
+    labels: []
 change-template: '- $MESSAGE by @$AUTHOR'
 template: |
   # 📦 Release Notes
@@ -23,25 +23,25 @@ template: |
   ## 🚀 What's New
 
   ### ✨ New Features
-  $CHANGES_FOR_CATEGORY{✨ New Features}
+  $CHANGES_FOR_CATEGORY{"New Features"}
 
   ### 🐛 Bug Fixes
-  $CHANGES_FOR_CATEGORY{🐛 Bug Fixes}
+  $CHANGES_FOR_CATEGORY{"Bug Fixes"}
 
   ---
-
+  
   ## 🔧 Other Improvements
-  $CHANGES_FOR_CATEGORY{🔧 Other Improvements}
+  $CHANGES_FOR_CATEGORY{"Other Improvements"}
 
   ---
-
+  
   ## ⚠️ Known Issues
   - No known issues at this time.
 
   ---
 
   ## ℹ️ Additional Information
-  $CHANGES_FOR_CATEGORY{Uncategorized Changes}
+  $CHANGES_FOR_CATEGORY{"Uncategorized Changes"}
 
   ---
 
