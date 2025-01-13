@@ -1,51 +1,13 @@
-name-template: 'Release v$NEXT_PATCH_VERSION'
+name-template: 'v$NEXT_PATCH_VERSION 🌟'
 tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
-  - title: 'New Features'
-    labels:
-      - 'feat'
-  - title: 'Bug Fixes'
-    labels:
-      - 'fix'
-  - title: 'Other Improvements'
-    labels:
-      - 'chore'
-  - title: 'Uncategorized Changes'
-    labels: []
-change-template: '- $MESSAGE by @$AUTHOR'
-template: |
-  # 📦 Release Notes
-
-  **📅 Release Date:** _$DATE_
-
-  ---
-
-  ## 🚀 What's New
-
-  ### ✨ New Features
-  $CHANGES_FOR_CATEGORY{"New Features"}
-
-  ### 🐛 Bug Fixes
-  $CHANGES_FOR_CATEGORY{"Bug Fixes"}
-
-  ---
-
-  ## 🔧 Other Improvements
-  $CHANGES_FOR_CATEGORY{"Other Improvements"}
-
-  ---
-
-  ## ⚠️ Known Issues
-  - No known issues at this time.
-
-  ---
-
-  ## ℹ️ Additional Information
-  $CHANGES_FOR_CATEGORY{"Uncategorized Changes"}
-
-  ---
-
-  *If you have any questions or feedback, feel free to [contact me](mailto:magnus@overli.dev).*
-
-include:
-  - commit
+  - title: 🚀 Features
+    commit:
+      - "^feat"
+  - title: 🐛 Bug Fixes
+    commit:
+      - "^fix"
+  - title: 📚 Documentation
+    commit:
+      - "^docs"
+change-template: '- $TITLE @$AUTHOR'
