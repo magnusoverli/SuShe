@@ -10,11 +10,8 @@ categories:
   - title: '🔧 Other Improvements'
     include:
       - chore:
-  - title: 'Uncategorized Changes'  # This catches any commits without recognized labels or prefixes
-    exclude:
-      - feat:
-      - fix:
-      - chore:
+  - title: 'Uncategorized Changes'  # Catch-all for uncategorized commits
+    labels: []  # This ensures this category handles all commits with no specific prefix or label
 change-template: '- $MESSAGE by @$AUTHOR'
 template: |
   # 📦 Release Notes
