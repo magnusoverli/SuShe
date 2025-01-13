@@ -712,13 +712,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 
                 config_path = resource_path('config.json')
                 
-                # Backup existing config
-                if os.path.exists(config_path):
-                    backup_path = config_path + '.backup'
-                    os.rename(config_path, backup_path)
-                    logging.info(f"Existing config backed up to {backup_path}")
-                
-                # Save new config
                 with open(config_path, 'w') as file:
                     json.dump(new_config, file, indent=4)
                 logging.info("Configuration imported successfully.")
@@ -1461,10 +1454,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.dataChanged = False
             logging.info(f"Data saved successfully to {self.current_file_path}. dataChanged set to False.")
             
-            # Correct the reference to statusBar()
             self.statusBar().showMessage(f"Data saved to {self.current_file_path}.", 5000)
             
-            QMessageBox.information(self, "Saved", f"Data saved to {self.current_file_path}.")
             # Update last opened file and recent files
             self.update_recent_files(self.current_file_path)
             self.save_settings()
