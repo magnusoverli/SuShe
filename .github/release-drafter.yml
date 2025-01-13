@@ -1,51 +1,32 @@
-name-template: 'Release v$NEXT_PATCH_VERSION'
-tag-template: 'v$NEXT_PATCH_VERSION'
+name-template: 'v$RESOLVED_VERSION 🌈'
+tag-template: 'v$RESOLVED_VERSION'
 categories:
-  - title: 'New Features'
+  - title: '🚀 Features'
     labels:
+      - 'feature'
       - 'feat'
-  - title: 'Bug Fixes'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
     labels:
       - 'fix'
-  - title: 'Other Improvements'
+      - 'bugfix'
+      - 'bug'
+  - title: '🧰 Maintenance'
+    label: 'chore'
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+version-resolver:
+  major:
     labels:
-      - 'chore'
-  - title: 'Uncategorized Changes'
-    labels: []
-change-template: '- $MESSAGE by @$AUTHOR'
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
 template: |
-  # 📦 Release Notes
+  ## Changes
 
-  **📅 Release Date:** _$DATE_
-
-  ---
-
-  ## 🚀 What's New
-
-  ### ✨ New Features
-  $CHANGES_FOR_CATEGORY{"New Features"}
-
-  ### 🐛 Bug Fixes
-  $CHANGES_FOR_CATEGORY{"Bug Fixes"}
-
-  ---
-
-  ## 🔧 Other Improvements
-  $CHANGES_FOR_CATEGORY{"Other Improvements"}
-
-  ---
-
-  ## ⚠️ Known Issues
-  - No known issues at this time.
-
-  ---
-
-  ## ℹ️ Additional Information
-  $CHANGES_FOR_CATEGORY{"Uncategorized Changes"}
-
-  ---
-
-  *If you have any questions or feedback, feel free to [contact me](mailto:magnus@overli.dev).*
-
-include:
-  - commit
+  $CHANGES
