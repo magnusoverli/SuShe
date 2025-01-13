@@ -31,6 +31,10 @@ from delegates import (
     ComboBoxDelegate, RatingDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags
 )
 
+def handle_exception(exc_type, exc_value, exc_traceback):
+    logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+    print("Uncaught exception:", exc_type, exc_value, exc_traceback)  # Print to console for debugging
+
 def setup_logging():
     # Define the logs directory within the user's application data folder
     app_name = 'SuSheApp'
@@ -52,14 +56,13 @@ def setup_logging():
     text_edit_logger.setFormatter(formatter)
     logging.getLogger().addHandler(text_edit_logger)
 
-    def handle_exception(exc_type, exc_value, exc_traceback):
-        logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-        print("Uncaught exception:", exc_type, exc_value, exc_traceback)  # Add this line
+    # Set global exception handler
     sys.excepthook = handle_exception
+
     logging.getLogger().setLevel(logging.DEBUG)
     logging.info("Logging setup complete")
 
-    # **Suppress Pillow's debug logs**
+    # Suppress Pillow's debug logs
     logging.getLogger('PIL').setLevel(logging.WARNING)
 
     return text_edit_logger
@@ -252,6 +255,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     self.webhook_url = config.get('webhook', {}).get('url', '')
                     if not self.webhook_url:
                         logging.warning("Webhook URL not found in config.json.")
+                    # **Update the UI field with the loaded webhook URL**
+                    if hasattr(self, 'webhook_url_input'):
+                        self.webhook_url_input.setText(self.webhook_url)
 
                     logging.info("Configuration loaded successfully.")
             except json.JSONDecodeError as e:
