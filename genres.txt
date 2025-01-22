@@ -32,12 +32,14 @@ Cybergrind
 D-Beat
 Dark Folk
 Dark Jazz
+Darkwave
 Death 'N Roll
 Death Doom Metal
 Death Metal
 Deathcore
 Deathgrind
 Depressive Black Metal
+Dissonant Black Metal
 Dissonant Death Metal
 Djent
 Doom Metal
@@ -111,6 +113,7 @@ Pagan Black Metal
 Pornogrind
 Post-Grunge
 Post-Hardcore
+Post-Industrial
 Post-Metal
 Post-Rock
 Power Metal
@@ -143,6 +146,7 @@ Street Punk
 Swancore
 Symphonic Black Metal
 Symphonic Metal
+Symphonic Prog
 Synthpop
 Synthwave
 Technical Death Metal
