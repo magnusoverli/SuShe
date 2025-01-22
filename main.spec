@@ -3,6 +3,7 @@
 import os
 import subprocess
 import glob
+from getpass import getpass
 
 block_cipher = None
 
@@ -78,3 +79,37 @@ coll = COLLECT(
     upx_exclude=[],
     name=output_name,  # Use the versioned output folder name
 )
+
+# Signing the executable (custom step)
+try:
+    # Prompt the user for the password securely
+    pfx_password = getpass("Enter the password for the signing certificate: ")
+
+    # Path to the signed executable
+    build_output_dir = os.path.abspath(os.path.join('dist', output_name))  # Use dist directory
+    signed_exe_path = os.path.join(build_output_dir, "SuShe.exe")
+
+    if not os.path.exists(signed_exe_path):
+        raise FileNotFoundError(f"The expected executable was not found at {signed_exe_path}")
+
+    # Path to signtool.exe
+    signtool_path = r"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+
+    # Command to sign the executable
+    sign_command = [
+        signtool_path,
+        "sign",
+        "/f", r"C:\Users\Magnus\cert.pfx",          # Path to your .pfx file
+        "/p", pfx_password,                         # Password entered by the user
+        "/tr", "http://timestamp.digicert.com",     # Timestamp server
+        "/td", "sha256",                            # Timestamp digest algorithm
+        "/fd", "sha256",                            # File digest algorithm
+        signed_exe_path                             # Path to the .exe file
+    ]
+
+    # Run the signing command
+    subprocess.run(sign_command, check=True)
+    print(f"Successfully signed {signed_exe_path}")
+
+except Exception as e:
+    print(f"Error signing the executable: {e}")
