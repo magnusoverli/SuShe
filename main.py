@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, 
                              QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView)
 from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QBrush
-from PyQt6.QtCore import Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QSize
+from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl)
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -13,7 +13,6 @@ import requests
 import logging
 import base64
 from functools import partial
-from io import BytesIO
 import os
 import json
 import sys
@@ -74,15 +73,19 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-def read_file_lines(filepath):
+def read_file_lines(filepath, transform=None):
     correct_path = resource_path(filepath)
     logging.debug(f"Reading file: {correct_path}")
-    with open(correct_path, 'r') as file:
-        lines = set(line.strip() for line in file)
-        if 'genres.txt' in filepath:
-            lines = {line.title() for line in lines}
-        logging.debug(f"Read {len(lines)} lines from {filepath}")
-        return sorted(lines)
+    try:
+        with open(correct_path, 'r') as file:
+            lines = set(line.strip() for line in file)
+            if transform:
+                lines = transform(lines)
+            logging.debug(f"Read {len(lines)} lines from {filepath}")
+            return sorted(lines)
+    except Exception as e:
+        logging.error(f"Failed to read file {filepath}: {e}")
+        return []
 
 class QTextEditLogger(logging.Handler, QObject):
     log_signal = pyqtSignal(str)
@@ -158,9 +161,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def initUI(self):
         self.menu_bar = MenuBar(self)
-        self.client_id = None
-        self.client_secret = None
-        self.dataChanged = False
         self.preferred_music_player = 'Spotify'  # Initialize with default value
         self.update_window_title()
         self.artist_id_map = {}
@@ -177,7 +177,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.setWindowIcon(QIcon(resource_path(os.path.join("logos", "logo.ico"))))
         
         # Initialize genres and countries before setting up tabs
-        self.genres = read_file_lines('genres.txt')
+        self.genres = read_file_lines('genres.txt', transform=lambda lines: {line.title() for line in lines})
         self.countries = read_file_lines('countries.txt')
         
         self.setup_tabs()
@@ -1235,23 +1235,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.album_id_map[display_text] = album['id']
         self.album_list.blockSignals(False)  # Unblock signals after updates
 
-    def _fetch_album_details(self, album_id):
-        access_token = self.get_access_token()
-        if not access_token:
-            return {"error": "Failed to obtain access token"}
-
-        url = f"https://api.spotify.com/v1/albums/{album_id}"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        try:
-            logging.info(f"Fetching details for album ID: {album_id}")
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            logging.info(f"Details fetched successfully for album ID: {album_id}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to fetch album details for album_id {album_id}: {e}")
-            return {"error": str(e)}
-
     def fetch_album_details(self, item):
         album_text = item.text()
         album_id = self.album_id_map.get(album_text)
@@ -1899,39 +1882,30 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
 
 if __name__ == "__main__":
-    print("Starting application...")
     text_edit_logger = setup_logging()
-    print("Logging initialized.")
-
+    
     app = QApplication([])
-    print("QApplication created.")
-
+    
     # Set the application font to ensure support for certain characters
     app.setFont(QFont("Arial", 10))
-    print("Font set.")
-
+    
     # Load and apply the stylesheet
     style_path = resource_path('style.qss')  # Use the standalone resource_path function
     if os.path.exists(style_path):
-        print(f"Stylesheet found at {style_path}.")
         file = QFile(style_path)
         if file.open(QIODevice.OpenModeFlag.ReadOnly | QIODevice.OpenModeFlag.Text):
             stream = QTextStream(file)
             app.setStyleSheet(stream.readAll())
             file.close()
-            print("Stylesheet applied.")
+            logging.info("Stylesheet applied.")
         else:
             logging.error(f"Failed to open style sheet at {style_path}.")
-            print(f"Failed to open style sheet at {style_path}.")
     else:
         logging.warning(f"Style sheet not found at {style_path}.")
-        print(f"Style sheet not found at {style_path}.")
-
-    print("Creating main window...")
+    
     window = SpotifyAlbumAnalyzer(text_edit_logger)
-    print("Main window created but not shown yet.")
-
+    
     # Schedule the initial update check
     QTimer.singleShot(0, window.perform_initialization)
-
+    
     sys.exit(app.exec())
