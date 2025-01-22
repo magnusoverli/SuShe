@@ -135,5 +135,3 @@ begin
     MsgBox('Upgrading SuShe to version ' + ExpandConstant('{appversion}'), mbInformation, MB_OK);
   end;
 end;
-
-#pragma postcompile '"C:\Program Files\7-Zip\7z.exe" a -tzip "installer\SuSheInstaller_v{#MyAppVersion}.zip" "installer\SuSheInstaller_v{#MyAppVersion}.exe"'
