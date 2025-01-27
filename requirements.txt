@@ -4,7 +4,7 @@ charset-normalizer==3.4.0
 idna==3.10
 Markdown==3.7
 packaging==24.2
-pefile==2023.2.7
+pefile==2024.8.26
 pillow==11.0.0
 pyinstaller==6.11.1
 pyinstaller-hooks-contrib==2024.11
