@@ -13,5 +13,5 @@ PyQt6-Qt6==6.8.2
 PyQt6_sip==13.10.0
 pywin32-ctypes==0.2.3
 requests==2.32.3
-setuptools==75.8.0
+setuptools==77.0.3
 urllib3==2.2.3
