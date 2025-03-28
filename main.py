@@ -121,8 +121,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.current_file_path = None
         self.last_opened_file = None
         self.recent_files = []
-        self.client_id = None
-        self.client_secret = None
         self.bot_token = None
         self.chat_id = None
         self.message_thread_id = None
@@ -228,12 +226,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             try:
                 with open(config_path, 'r') as file:
                     config = json.load(file)
-                    # Load Spotify credentials
-                    self.client_id = config.get('spotify', {}).get('client_id', '')
-                    self.client_secret = config.get('spotify', {}).get('client_secret', '')
-                    self.client_id_input.setText(self.client_id)
-                    self.client_secret_input.setText(self.client_secret)
-
                     # Load Telegram credentials
                     self.bot_token = config.get('telegram', {}).get('bot_token', '')
                     self.chat_id = config.get('telegram', {}).get('chat_id', '')
@@ -934,31 +926,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         webhook_group_box.setLayout(webhook_layout)
         layout.addWidget(webhook_group_box)
 
-        # Spotify Credentials GroupBox
-        spotify_credentials_group_box = QGroupBox("Spotify API Credentials")
-        spotify_credentials_layout = QVBoxLayout()
-        spotify_credentials_layout.setContentsMargins(10, 10, 10, 10)
-
-        # Client ID input
-        client_id_label = QLabel("Client ID:")
-        spotify_credentials_layout.addWidget(client_id_label)
-        self.client_id_input = QLineEdit()
-        spotify_credentials_layout.addWidget(self.client_id_input)
-
-        # Client Secret input
-        client_secret_label = QLabel("Client Secret:")
-        spotify_credentials_layout.addWidget(client_secret_label)
-        self.client_secret_input = QLineEdit()
-        spotify_credentials_layout.addWidget(self.client_secret_input)
-
-        # Save Spotify Settings Button
-        save_spotify_button = QPushButton("Save Spotify Settings")
-        spotify_credentials_layout.addWidget(save_spotify_button)
-        save_spotify_button.clicked.connect(self.save_credentials)
-
-        spotify_credentials_group_box.setLayout(spotify_credentials_layout)
-        layout.addWidget(spotify_credentials_group_box)
-
         layout.addSpacing(30)
 
         # Telegram settings group box
@@ -1015,23 +982,23 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         layout.addStretch()
         self.settings_tab.setLayout(layout)
 
-def update_spotify_auth_status(self):
-    """Update the Spotify authentication status display"""
-    if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
-        self.spotify_auth_status.setText("✓ Logged in to Spotify")
-        self.spotify_auth_status.setStyleSheet("color: green; font-weight: bold;")
-        self.spotify_login_button.setEnabled(False)
-        self.spotify_logout_button.setEnabled(True)
-    else:
-        self.spotify_auth_status.setText("Not logged in to Spotify")
-        self.spotify_auth_status.setStyleSheet("")
-        self.spotify_login_button.setEnabled(True)
-        self.spotify_logout_button.setEnabled(False)
+    def update_spotify_auth_status(self):
+        """Update the Spotify authentication status display"""
+        if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
+            self.spotify_auth_status.setText("✓ Logged in to Spotify")
+            self.spotify_auth_status.setStyleSheet("color: green; font-weight: bold;")
+            self.spotify_login_button.setEnabled(False)
+            self.spotify_logout_button.setEnabled(True)
+        else:
+            self.spotify_auth_status.setText("Not logged in to Spotify")
+            self.spotify_auth_status.setStyleSheet("")
+            self.spotify_login_button.setEnabled(True)
+            self.spotify_logout_button.setEnabled(False)
 
     def login_to_spotify(self):
         """Initiate Spotify login flow"""
         # Default client ID embedded in app
-        default_client_id = "YOUR_DEFAULT_CLIENT_ID"  # Replace with your client ID
+        default_client_id = "2241ba6e592a4d60aa18c81a8507f0b3"  # Replace with your client ID
         
         if not hasattr(self, 'spotify_auth'):
             from spotify_auth import SpotifyAuth
@@ -1152,20 +1119,6 @@ def update_spotify_auth_status(self):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save Webhook settings. Details: {e}")
 
-
-    def save_credentials(self):
-        spotify_settings = {
-            "client_id": self.client_id_input.text().strip(),
-            "client_secret": self.client_secret_input.text().strip()
-        }
-        try:
-            self.save_config_section('spotify', spotify_settings)
-            self.client_id = spotify_settings["client_id"]
-            self.client_secret = spotify_settings["client_secret"]
-            QMessageBox.information(self, "Success", "Spotify settings saved successfully.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save Spotify settings. Details: {e}")
-
     def save_telegram_settings(self):
         telegram_settings = {
             "bot_token": self.bot_token_input.text().strip(),
@@ -1214,9 +1167,11 @@ def update_spotify_auth_status(self):
             return self.spotify_auth.access_token
         
         # Try loading saved tokens
-        if not hasattr(self, 'spotify_auth') and self.load_spotify_tokens():
-            if self.spotify_auth.access_token:
-                return self.spotify_auth.access_token
+        if not hasattr(self, 'spotify_auth'):
+            self.load_spotify_tokens()
+            
+        if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
+            return self.spotify_auth.access_token
         
         # Try refreshing the token if we have a refresh token
         if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:

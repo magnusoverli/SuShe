@@ -1,7 +1,6 @@
 {
     "spotify": {
-        "client_id": "",
-        "client_secret": ""
+        "default_client_id": "2241ba6e592a4d60aa18c81a8507f0b3"
     },
     "telegram": {
         "bot_token": "",
