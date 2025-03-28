@@ -581,13 +581,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if self.matches:
             self.goto_next_match()
 
-    def clear_search_highlights(self):
-        for row in range(self.album_table.rowCount()):
-            for column in range(self.album_table.columnCount()):
-                item = self.album_table.item(row, column)
-                if item:
-                    item.setBackground(QBrush(Qt.GlobalColor.white))
-
     def goto_next_match(self):
         if not self.matches:
             return
@@ -873,10 +866,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         header = self.album_table.horizontalHeader()
         for i in range(self.album_table.columnCount()):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
-
-    def set_static_row_heights(self):
-        for row in range(self.album_table.rowCount()):
-            self.album_table.setRowHeight(row, 100)  # Adjust the row height as needed
 
     def setup_settings_tab(self):
         layout = QVBoxLayout()
@@ -1857,7 +1846,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         # Set column widths after loading data
         self.set_album_table_column_widths()
-        self.set_static_row_heights()
         self.album_table.blockSignals(False)
 
         self.album_table.sortItems(7, Qt.SortOrder.DescendingOrder)

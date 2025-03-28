@@ -27,9 +27,6 @@ datas = [
 
 # List of hidden imports that PyInstaller might miss
 hiddenimports = [
-#    'tempfile',           # Added because it's imported inside a function
-#    'requests',           # Keep if PyInstaller misses it
-#    'PIL',                # Keep if PyInstaller misses it
 ]
 
 # Analysis configuration
