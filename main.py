@@ -1065,8 +1065,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         tokens_path = self.get_user_data_path('spotify_tokens.json')
         
         if os.path.exists(tokens_path):
-            # Default client ID embedded in app
-            default_client_id = "YOUR_DEFAULT_CLIENT_ID"  # Replace with your client ID
+            # Use the same client ID as in login_to_spotify
+            default_client_id = "2241ba6e592a4d60aa18c81a8507f0b3"
             
             if not hasattr(self, 'spotify_auth'):
                 from spotify_auth import SpotifyAuth
