@@ -99,7 +99,7 @@ try:
     sign_command = [
         signtool_path,
         "sign",
-        "/f", r"C:\Users\Magnus\cert.pfx",          # Path to your .pfx file
+        "/f", r"C:\Users\meo\cert.pfx",          # Path to your .pfx file
         "/p", pfx_password,                         # Password entered by the user
         "/tr", "http://timestamp.digicert.com",     # Timestamp server
         "/td", "sha256",                            # Timestamp digest algorithm
