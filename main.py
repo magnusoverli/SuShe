@@ -142,6 +142,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.load_config()
         self.load_settings()
         self.update_recent_files_menu()
+
+        # Load Spotify tokens
+        self.load_spotify_tokens()
         
         if self.last_opened_file and os.path.exists(self.last_opened_file):
             self.load_album_data(self.last_opened_file)
@@ -885,24 +888,30 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def setup_settings_tab(self):
         layout = QVBoxLayout()
-
-        # Existing Spotify API Credentials Help GroupBox
-        info_group_box = QGroupBox("Spotify API Credentials Help")
-        info_group_box_layout = QVBoxLayout()
-
-        # Information text
-        info_text = QLabel("Enter your Spotify API credentials below. You can obtain these credentials by registering your application in the Spotify Developer Dashboard.")
-        info_text.setWordWrap(True)
-        info_group_box_layout.addWidget(info_text)
         
-        # Spotify documentation link
-        link_text = '<a href="https://developer.spotify.com/documentation/web-api/tutorials/getting-started">Creating your own credentials</a>'
-        link_label = QLabel(link_text)
-        link_label.setOpenExternalLinks(True)
-        info_group_box_layout.addWidget(link_label)
-
-        info_group_box.setLayout(info_group_box_layout)
-        layout.addWidget(info_group_box)
+        # Spotify Authentication GroupBox
+        spotify_auth_group_box = QGroupBox("Spotify Authentication")
+        spotify_auth_layout = QVBoxLayout()
+        
+        # Status label
+        self.spotify_auth_status = QLabel("Not logged in to Spotify")
+        spotify_auth_layout.addWidget(self.spotify_auth_status)
+        
+        # Login/logout buttons
+        button_layout = QHBoxLayout()
+        self.spotify_login_button = QPushButton("Login with Spotify")
+        self.spotify_login_button.clicked.connect(self.login_to_spotify)
+        
+        self.spotify_logout_button = QPushButton("Logout from Spotify")
+        self.spotify_logout_button.clicked.connect(self.logout_from_spotify)
+        self.spotify_logout_button.setEnabled(False)  # Disabled by default
+        
+        button_layout.addWidget(self.spotify_login_button)
+        button_layout.addWidget(self.spotify_logout_button)
+        spotify_auth_layout.addLayout(button_layout)
+        
+        spotify_auth_group_box.setLayout(spotify_auth_layout)
+        layout.addWidget(spotify_auth_group_box)
         
         layout.addSpacing(30)
 
@@ -1006,6 +1015,101 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         layout.addStretch()
         self.settings_tab.setLayout(layout)
 
+def update_spotify_auth_status(self):
+    """Update the Spotify authentication status display"""
+    if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
+        self.spotify_auth_status.setText("✓ Logged in to Spotify")
+        self.spotify_auth_status.setStyleSheet("color: green; font-weight: bold;")
+        self.spotify_login_button.setEnabled(False)
+        self.spotify_logout_button.setEnabled(True)
+    else:
+        self.spotify_auth_status.setText("Not logged in to Spotify")
+        self.spotify_auth_status.setStyleSheet("")
+        self.spotify_login_button.setEnabled(True)
+        self.spotify_logout_button.setEnabled(False)
+
+    def login_to_spotify(self):
+        """Initiate Spotify login flow"""
+        # Default client ID embedded in app
+        default_client_id = "YOUR_DEFAULT_CLIENT_ID"  # Replace with your client ID
+        
+        if not hasattr(self, 'spotify_auth'):
+            from spotify_auth import SpotifyAuth
+            self.spotify_auth = SpotifyAuth(default_client_id)
+        
+        # Show a progress dialog while waiting for auth
+        progress = QProgressDialog("Waiting for Spotify login...", "Cancel", 0, 0, self)
+        progress.setWindowTitle("Spotify Authentication")
+        progress.setCancelButton(None)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.show()
+        
+        # Start auth flow
+        self.spotify_auth.start_auth_flow()
+        
+        # Wait for auth code
+        max_wait_time = 120  # seconds
+        auth_complete = False
+        
+        for _ in range(max_wait_time * 10):  # Check every 100ms
+            QApplication.processEvents()
+            if self.spotify_auth.auth_code:
+                auth_complete = True
+                break
+            QThread.msleep(100)
+        
+        progress.close()
+        
+        if not auth_complete:
+            QMessageBox.warning(self, "Authentication Timeout", 
+                            "Spotify authentication timed out. Please try again.")
+            return
+        
+        # Exchange code for tokens
+        if self.spotify_auth.exchange_code_for_tokens():
+            # Save tokens to user data folder
+            tokens_path = self.get_user_data_path('spotify_tokens.json')
+            self.spotify_auth.save_tokens(tokens_path)
+            self.update_spotify_auth_status()
+            QMessageBox.information(self, "Success", "Successfully logged in to Spotify.")
+        else:
+            QMessageBox.warning(self, "Authentication Failed", 
+                            "Failed to obtain access tokens. Please try again.")
+
+    def logout_from_spotify(self):
+        """Log out from Spotify"""
+        if hasattr(self, 'spotify_auth'):
+            self.spotify_auth.access_token = None
+            self.spotify_auth.refresh_token = None
+            
+            # Remove saved tokens
+            tokens_path = self.get_user_data_path('spotify_tokens.json')
+            if os.path.exists(tokens_path):
+                try:
+                    os.remove(tokens_path)
+                except Exception as e:
+                    logging.error(f"Failed to remove token file: {e}")
+            
+            self.update_spotify_auth_status()
+            QMessageBox.information(self, "Logged Out", "Successfully logged out from Spotify.")
+
+    def load_spotify_tokens(self):
+        """Load saved Spotify tokens on startup"""
+        tokens_path = self.get_user_data_path('spotify_tokens.json')
+        
+        if os.path.exists(tokens_path):
+            # Default client ID embedded in app
+            default_client_id = "YOUR_DEFAULT_CLIENT_ID"  # Replace with your client ID
+            
+            if not hasattr(self, 'spotify_auth'):
+                from spotify_auth import SpotifyAuth
+                self.spotify_auth = SpotifyAuth(default_client_id)
+            
+            if self.spotify_auth.load_tokens(tokens_path):
+                self.update_spotify_auth_status()
+                return True
+        return False
+
     def load_config_section(self, section_name):
         config_path = resource_path('config.json')
         try:
@@ -1104,28 +1208,38 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 album_label.setText(f'<a href="{album_url}">{album_name}</a>')
 
     def get_access_token(self):
-        if not self.client_id or not self.client_secret:
-            logging.error("Client ID or Client Secret is missing")
-            return None
-
-        url = "https://accounts.spotify.com/api/token"
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        data = {
-            "grant_type": "client_credentials",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret
-        }
-
-        try:
-            logging.info("Requesting access token from Spotify")
-            response = requests.post(url, headers=headers, data=data)
-            response.raise_for_status()
-            token_data = response.json()
-            logging.info("Access token obtained successfully")
-            return token_data.get('access_token')
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to obtain access token: {e}")
-            return None
+        """Get a valid Spotify access token"""
+        # If we have a spotify_auth instance with a token, use it
+        if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
+            return self.spotify_auth.access_token
+        
+        # Try loading saved tokens
+        if not hasattr(self, 'spotify_auth') and self.load_spotify_tokens():
+            if self.spotify_auth.access_token:
+                return self.spotify_auth.access_token
+        
+        # Try refreshing the token if we have a refresh token
+        if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:
+            if self.spotify_auth.refresh_access_token():
+                tokens_path = self.get_user_data_path('spotify_tokens.json')
+                self.spotify_auth.save_tokens(tokens_path)
+                return self.spotify_auth.access_token
+        
+        # If we get here, we need user to log in
+        reply = QMessageBox.question(
+            self, "Spotify Login Required", 
+            "You need to log in to Spotify to continue. Would you like to log in now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.tabs.setCurrentWidget(self.settings_tab)
+            self.login_to_spotify()
+            # Return the token if we got one
+            if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
+                return self.spotify_auth.access_token
+        
+        return None
 
     def search_artist(self):
         artist_name = self.search_input.text().strip()
