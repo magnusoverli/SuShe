@@ -853,7 +853,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setColumnWidth(0, 130)  # "Artist" column
         self.album_table.setColumnWidth(1, 200)  # "Album" column
         self.album_table.setColumnWidth(2, 120)  # "Release Date" column
-        self.album_table.setColumnWidth(3, 100)  # "Cover Image" column (adjusted width)
+        self.album_table.setColumnWidth(3, 120)  # "Cover Image" column (adjusted width)
         self.album_table.setColumnWidth(4, 170)  # "Country" column
         self.album_table.setColumnWidth(5, 190)  # "Genre 1" column
         self.album_table.setColumnWidth(6, 190)  # "Genre 2" column
