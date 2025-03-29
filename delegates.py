@@ -3,8 +3,8 @@
 from PyQt6.QtWidgets import (
     QStyledItemDelegate, QComboBox, QCompleter, QDoubleSpinBox, QMessageBox, QLabel, QStyle
 )
-from PyQt6.QtGui import QKeyEvent, QPalette
-from PyQt6.QtCore import Qt, QRectF, QPointF, QLocale
+from PyQt6.QtGui import QKeyEvent, QPalette, QColor, QPolygon
+from PyQt6.QtCore import Qt, QRectF, QPointF, QLocale, QPointF
 import logging
 import re
 from html import unescape
@@ -73,6 +73,45 @@ class ComboBoxDelegate(QStyledItemDelegate):
         comboBox.currentIndexChanged.connect(self.commitAndClose)
 
         return comboBox
+
+    def paint(self, painter, option, index):
+        try:
+            painter.save()
+            
+            parent = self.parent()
+            if parent is None:
+                super().paint(painter, option, index)
+                return
+                
+            # Draw background
+            parent.style().drawPrimitive(
+                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+            )
+            
+            # Draw text with space for indicator
+            text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            text_rect = option.rect.adjusted(5, 0, -20, 0)
+            painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+            
+            # Draw dropdown indicator
+            indicator_rect = QRect(
+                option.rect.right() - 16, 
+                option.rect.top() + (option.rect.height() - 8) // 2,
+                8, 8
+            )
+            painter.setPen(Qt.GlobalColor.white)
+            painter.setBrush(QColor("#666666"))
+            points = [
+                QPoint(indicator_rect.left(), indicator_rect.top()),
+                QPoint(indicator_rect.right(), indicator_rect.top()),
+                QPoint(indicator_rect.left() + indicator_rect.width() // 2, indicator_rect.bottom())
+            ]
+            painter.drawPolygon(QPolygon(points))
+        except Exception as e:
+            logging.error(f"Error in ComboBoxDelegate.paint: {e}")
+        finally:
+            painter.restore()
 
     def commitAndClose(self):
         """
@@ -320,9 +359,6 @@ class GenreSearchDelegate(QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
     def paint(self, painter, option, index):
-        """
-        Overrides the paint method to highlight search matches.
-        """
         try:
             painter.save()
 
@@ -350,7 +386,7 @@ class GenreSearchDelegate(QStyledItemDelegate):
                 if self.search_text and self.search_text in data_lower:
                     # Prepare to draw the text with highlighted matches
                     painter.setClipRect(option.rect)
-                    text_rect = option.rect.adjusted(5, 0, -5, 0)
+                    text_rect = option.rect.adjusted(5, 0, -20, 0)  # Leave space for dropdown indicator
 
                     # Set up font metrics
                     fm = painter.fontMetrics()
@@ -382,10 +418,28 @@ class GenreSearchDelegate(QStyledItemDelegate):
                         x += segment_width
                 else:
                     # No matches, draw text normally
-                    super().paint(painter, option, index)
+                    text_rect = option.rect.adjusted(5, 0, -20, 0)
+                    painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                    painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, data)
             else:
-                # No data, draw normally
-                super().paint(painter, option, index)
+                # No data, draw nothing
+                pass
+                
+            # Draw dropdown indicator
+            indicator_rect = QRect(
+                option.rect.right() - 16, 
+                option.rect.top() + (option.rect.height() - 8) // 2,
+                8, 8
+            )
+            painter.setPen(Qt.GlobalColor.white)
+            painter.setBrush(QColor("#666666"))
+            points = [
+                QPoint(indicator_rect.left(), indicator_rect.top()),
+                QPoint(indicator_rect.right(), indicator_rect.top()),
+                QPoint(indicator_rect.left() + indicator_rect.width() // 2, indicator_rect.bottom())
+            ]
+            painter.drawPolygon(QPolygon(points))
+            
         except Exception as e:
             logging.error(f"Error in GenreSearchDelegate.paint: {e}")
         finally:
