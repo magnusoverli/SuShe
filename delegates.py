@@ -25,26 +25,6 @@ def strip_html_tags(text):
     return unescape(re.sub(clean, '', text))
 
 
-class CustomDoubleSpinBox(QDoubleSpinBox):
-    """
-    A customized QDoubleSpinBox that replaces comma with dot for decimal input.
-    """
-    def keyPressEvent(self, event):
-        if event.text() == ',':
-            # Replace comma with dot
-            new_event = QKeyEvent(
-                event.type(),
-                Qt.Key.Key_Period,
-                event.modifiers(),
-                '.',
-                event.isAutoRepeat(),
-                event.count()
-            )
-            super().keyPressEvent(new_event)
-        else:
-            super().keyPressEvent(event)
-
-
 class ComboBoxDelegate(QStyledItemDelegate):
     """
     A delegate that provides a QComboBox editor for table cells.
@@ -140,32 +120,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
         Sets the editor's geometry.
         """
         editor.setGeometry(option.rect)
-
-
-class RatingDelegate(QStyledItemDelegate):
-    """
-    A delegate that provides a customized QDoubleSpinBox editor for rating cells.
-    """
-    def createEditor(self, parent, option, index):
-        editor = CustomDoubleSpinBox(parent)
-        editor.setFrame(False)
-        editor.setDecimals(2)
-        # Set locale to English (United States) to use dot as decimal separator
-        editor.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-        
-        # Correctly locate and set the stylesheet for the editor
-        style_sheet_path = os.path.join(os.path.dirname(__file__), 'style.qss')
-        if os.path.exists(style_sheet_path):
-            try:
-                with open(style_sheet_path, "r") as file:
-                    stylesheet = file.read()
-                    editor.setStyleSheet(stylesheet)
-            except Exception as e:
-                logging.error(f"Failed to apply stylesheet to RatingDelegate editor: {e}")
-        else:
-            logging.warning(f"Stylesheet not found at {style_sheet_path}. Skipping stylesheet application.")
-
-        return editor
 
     def setEditorData(self, editor, index):
         """

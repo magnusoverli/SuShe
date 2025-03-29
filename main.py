@@ -27,7 +27,7 @@ from image_handler import ImageWidget
 from menu_bar import MenuBar
 
 from delegates import (
-    ComboBoxDelegate, RatingDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags
+    ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags
 )
 
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -560,7 +560,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
 
         # Columns to search
-        columns_to_search = [0, 1, 5, 6, 8]  # Artist, Album, Genre 1, Genre 2, Comments
+        columns_to_search = [0, 1, 5, 6, 7]  # Artist, Album, Genre 1, Genre 2, Comments
 
         # Find matches
         for row in range(self.album_table.rowCount()):
@@ -787,10 +787,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         layout = QVBoxLayout()
 
         self.album_table = QTableWidget()
-        self.album_table.setColumnCount(9)
+        self.album_table.setColumnCount(8)
         self.album_table.setHorizontalHeaderLabels([
             "Artist", "Album", "Release Date", "Cover Image",
-            "Country", "Genre 1", "Genre 2", "Rating", "Comments"
+            "Country", "Genre 1", "Genre 2", "Comments"
         ])
         layout.addWidget(self.album_table)
 
@@ -798,17 +798,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         country_delegate = ComboBoxDelegate(self.countries, self.album_table)
         self.genre_delegate_1 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
         self.genre_delegate_2 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
-        rating_delegate = RatingDelegate(self.album_table)
 
         # Assign delegates to respective columns
         self.album_table.setItemDelegateForColumn(4, country_delegate)      # 'Country' column
         self.album_table.setItemDelegateForColumn(5, self.genre_delegate_1)  # 'Genre 1' column
         self.album_table.setItemDelegateForColumn(6, self.genre_delegate_2)  # 'Genre 2' column
-        self.album_table.setItemDelegateForColumn(7, rating_delegate)       # 'Rating' column
 
         # Set the search highlight delegate for specified columns
         self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
-        for column in [0, 1, 8]:  # Columns to search: Artist, Album, Comments
+        for column in [0, 1, 7]:  # Columns to search: Artist, Album, Comments
             self.album_table.setItemDelegateForColumn(column, self.search_delegate)
 
         # Connect signals
@@ -854,13 +852,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         # Set the desired column widths
         self.album_table.setColumnWidth(0, 130)  # "Artist" column
         self.album_table.setColumnWidth(1, 200)  # "Album" column
-        self.album_table.setColumnWidth(2, 100)  # "Release Date" column
+        self.album_table.setColumnWidth(2, 120)  # "Release Date" column
         self.album_table.setColumnWidth(3, 100)  # "Cover Image" column (adjusted width)
-        self.album_table.setColumnWidth(4, 150)  # "Country" column
-        self.album_table.setColumnWidth(5, 170)  # "Genre 1" column
-        self.album_table.setColumnWidth(6, 170)  # "Genre 2" column
-        self.album_table.setColumnWidth(7, 65)   # "Rating" column
-        self.album_table.setColumnWidth(8, 340)  # "Comments" column
+        self.album_table.setColumnWidth(4, 170)  # "Country" column
+        self.album_table.setColumnWidth(5, 190)  # "Genre 1" column
+        self.album_table.setColumnWidth(6, 190)  # "Genre 2" column
+        self.album_table.setColumnWidth(7, 340)  # "Comments" column
 
         # Set fixed column sizes
         header = self.album_table.horizontalHeader()
@@ -1409,13 +1406,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 default_genre_1 = "Genre 1"
                 default_genre_2 = "Genre 2"
                 default_comments = "Comment"
-                default_rating = "0.00"
 
                 self.album_table.setItem(row_position, 4, QTableWidgetItem(default_country))
                 self.album_table.setItem(row_position, 5, QTableWidgetItem(default_genre_1))
                 self.album_table.setItem(row_position, 6, QTableWidgetItem(default_genre_2))
-                self.album_table.setItem(row_position, 7, QTableWidgetItem(default_rating))
-                self.album_table.setItem(row_position, 8, QTableWidgetItem(default_comments))
+                self.album_table.setItem(row_position, 7, QTableWidgetItem(default_comments))
 
                 self.dataChanged = True  # Set flag to True when album details are fetched and added
                 self.update_window_title()
@@ -1667,8 +1662,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 "country": self.album_table.item(row, 4).text() if self.album_table.item(row, 4) else "",
                 "genre_1": self.album_table.item(row, 5).text() if self.album_table.item(row, 5) else "",
                 "genre_2": self.album_table.item(row, 6).text() if self.album_table.item(row, 6) else "",
-                "rating": self.album_table.item(row, 7).text() if self.album_table.item(row, 7) else "",
-                "comments": self.album_table.item(row, 8).text() if self.album_table.item(row, 8) else "",
+                "comments": self.album_table.item(row, 7).text() if self.album_table.item(row, 7) else "",
                 "rank": rank,  # Include "Rank"
                 "points": points,  # Include "Points"
             }
@@ -1841,14 +1835,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.album_table.setItem(row_pos, 4, QTableWidgetItem(row_data.get("country", "")))
             self.album_table.setItem(row_pos, 5, QTableWidgetItem(row_data.get("genre_1", "")))
             self.album_table.setItem(row_pos, 6, QTableWidgetItem(row_data.get("genre_2", "")))
-            self.album_table.setItem(row_pos, 7, QTableWidgetItem(row_data.get("rating", "0.00")))
-            self.album_table.setItem(row_pos, 8, QTableWidgetItem(row_data.get("comments", "")))
+            self.album_table.setItem(row_pos, 7, QTableWidgetItem(row_data.get("comments", "")))
 
         # Set column widths after loading data
         self.set_album_table_column_widths()
         self.album_table.blockSignals(False)
 
-        self.album_table.sortItems(7, Qt.SortOrder.DescendingOrder)
+        self.album_table.sortItems(2, Qt.SortOrder.DescendingOrder)
 
     def close_album_data(self):
         if self.dataChanged:
@@ -1893,7 +1886,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.dataChanged = True
             self.update_window_title()
 
-    def add_manual_album_to_table(self, artist, album, release_date, cover_image_path, country, genre1, genre2, rating, comments):
+    def add_manual_album_to_table(self, artist, album, release_date, cover_image_path, country, genre1, genre2, comments):
         self.album_table.blockSignals(True)
         # Convert the release date to DD-MM-YYYY format for display
         release_date_display = self.format_date_dd_mm_yyyy(release_date)
@@ -1930,8 +1923,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setItem(row_position, 4, QTableWidgetItem(country))
         self.album_table.setItem(row_position, 5, QTableWidgetItem(genre1))
         self.album_table.setItem(row_position, 6, QTableWidgetItem(genre2))
-        self.album_table.setItem(row_position, 7, QTableWidgetItem(rating))
-        self.album_table.setItem(row_position, 8, QTableWidgetItem(comments))
+        self.album_table.setItem(row_position, 7, QTableWidgetItem(comments))
         self.album_table.blockSignals(False)  # Unblock signals
         self.dataChanged = True
         self.update_window_title()

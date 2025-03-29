@@ -1,8 +1,6 @@
-# dialogs.py
-
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QDoubleSpinBox, QFileDialog,
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QFileDialog,
                              QLineEdit, QPushButton, QMessageBox, QTextEdit, QTextBrowser)
-from PyQt6.QtCore import Qt, pyqtSignal, QLocale
+from PyQt6.QtCore import Qt, pyqtSignal
 import logging
 from datetime import datetime
 import os
@@ -172,12 +170,6 @@ class ManualAddAlbumDialog(QDialog):
         genre2Layout.addWidget(self.genre2ComboBox)
         layout.addLayout(genre2Layout)
 
-        self.ratingSpinBox = QDoubleSpinBox(self)
-        self.ratingSpinBox.setDecimals(2)
-        self.ratingSpinBox.setRange(0.00, 5.00)
-        self.ratingSpinBox.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
-        layout.addWidget(self.ratingSpinBox)
-
         self.commentsEdit = QLineEdit(self)
         self.commentsEdit.setPlaceholderText("Comments")
         layout.addWidget(self.commentsEdit)
@@ -195,7 +187,6 @@ class ManualAddAlbumDialog(QDialog):
             self.browseButton.setText("Image Selected")  # Indicate that an image has been selected
 
     def add_album(self):
-        rating_value = self.ratingSpinBox.value()
         artist = self.artistEdit.text().strip()
         album = self.albumEdit.text().strip()
         release_date = self.releaseDateEdit.text().strip()
@@ -214,17 +205,9 @@ class ManualAddAlbumDialog(QDialog):
             QMessageBox.warning(self, "Input Error", "Invalid date format. Please use DDMMYY, DDMMYYYY, or DD-MM-YYYY.")
             return
 
-        # **Add validation for the rating value**
-        if not 0.00 <= rating_value <= 5.00:
-            QMessageBox.warning(self, "Input Error", "Rating must be between 0.00 and 5.00.")
-            return
-
-        # Format rating for storage/display
-        rating = "{:.2f}".format(rating_value)
-
         self.parent().add_manual_album_to_table(
             artist, album, release_date_formatted, self.cover_image_path,
-            country, genre1, genre2, rating, comments
+            country, genre1, genre2, comments
         )
         self.accept()
 
