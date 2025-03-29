@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QStyledItemDelegate, QComboBox, QCompleter, QDoubleSpinBox, QMessageBox, QLabel, QStyle
 )
 from PyQt6.QtGui import QKeyEvent, QPalette, QColor, QPolygon
-from PyQt6.QtCore import Qt, QRectF, QPointF, QLocale, QPointF
+from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPointF
 import logging
 import re
 from html import unescape
@@ -114,42 +114,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
         Updates the model with the editor's current value.
         """
         model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
-
-    def updateEditorGeometry(self, editor, option, index):
-        """
-        Sets the editor's geometry.
-        """
-        editor.setGeometry(option.rect)
-
-    def setEditorData(self, editor, index):
-        """
-        Sets the editor's value based on the model's data.
-        """
-        data = index.model().data(index, Qt.ItemDataRole.EditRole)
-        try:
-            value = float(data.replace(",", ".")) if data else 0.0
-        except ValueError:
-            value = 0.0
-        editor.setValue(value)
-
-    def setModelData(self, spinBox, model, index):
-        """
-        Updates the model with the editor's current value after validation.
-        """
-        spinBox.interpretText()
-        text = spinBox.text().replace(",", ".")
-        try:
-            value = float(text)
-        except ValueError:
-            QMessageBox.warning(None, "Invalid Input", "Invalid number format.")
-            return
-
-        if not 0.00 <= value <= 5.00:
-            QMessageBox.warning(None, "Invalid Input", "Rating must be between 0.00 and 5.00.")
-            return
-        else:
-            formatted_value = "{:.2f}".format(value)
-            model.setData(index, formatted_value, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
         """
