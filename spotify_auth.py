@@ -7,11 +7,17 @@ import urllib.parse
 import threading
 import requests
 import json
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
+from PyQt6.QtCore import QObject, pyqtSignal
 
-class SpotifyAuth:
+class SpotifyAuth(QObject):
+    auth_complete = pyqtSignal(bool)
+    auth_timeout = pyqtSignal()
+    
     def __init__(self, client_id, redirect_port=8888):
+        QObject.__init__(self)
         self.client_id = client_id
         self.redirect_port = redirect_port
         self.redirect_uri = f"http://localhost:{redirect_port}/callback"
@@ -19,6 +25,9 @@ class SpotifyAuth:
         self.refresh_token = None
         self.code_verifier = None
         self.auth_code = None
+        self.server = None
+        self.server_should_shutdown = False
+        self.server_thread = None
         
     def generate_code_verifier(self):
         code_verifier = ''.join(random.choice(string.ascii_letters + string.digits + "-._~") for _ in range(64))
@@ -46,10 +55,28 @@ class SpotifyAuth:
         
         return f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
         
-    def start_auth_flow(self):
+    def start_auth_flow(self, timeout_seconds=120):
         auth_url = self.get_authorization_url()
+        self.auth_code = None
+        self.server_should_shutdown = False
         self.start_auth_server()
         webbrowser.open(auth_url)
+        
+        # Start a timer to emit timeout signal if needed
+        def check_timeout():
+            start_time = time.time()
+            while time.time() - start_time < timeout_seconds:
+                if self.auth_code or self.server_should_shutdown:
+                    return
+                time.sleep(0.5)
+            
+            if not self.auth_code:
+                self.auth_timeout.emit()
+                self.server_should_shutdown = True
+        
+        timeout_thread = threading.Thread(target=check_timeout)
+        timeout_thread.daemon = True
+        timeout_thread.start()
         
     def start_auth_server(self):
         auth_instance = self
@@ -67,26 +94,44 @@ class SpotifyAuth:
                             self.send_header("Content-type", "text/html")
                             self.end_headers()
                             self.wfile.write(b"<html><body><h2>Authentication Successful</h2><p>You can close this window now.</p></body></html>")
+                            auth_instance.auth_complete.emit(True)
                         else:
                             self.send_response(400)
                             self.send_header("Content-type", "text/html")
                             self.end_headers()
                             self.wfile.write(b"<html><body><h2>Authentication Failed</h2><p>No authorization code received.</p></body></html>")
-                            
-                        # Signal server to shutdown
-                        threading.Thread(target=self.server.shutdown).start()
+                            auth_instance.auth_complete.emit(False)
+                        
+                        auth_instance.server_should_shutdown = True
                 except Exception as e:
                     logging.error(f"Error in callback handler: {e}")
+                    auth_instance.auth_complete.emit(False)
             
             # Silence server logs
             def log_message(self, format, *args):
                 return
         
-        server = HTTPServer(('localhost', self.redirect_port), AuthHandler)
-        server_thread = threading.Thread(target=server.serve_forever)
-        server_thread.daemon = True
-        server_thread.start()
+        def server_thread_func():
+            try:
+                self.server = HTTPServer(('localhost', self.redirect_port), AuthHandler)
+                while not self.server_should_shutdown:
+                    self.server.handle_request()
+                self.server.server_close()
+            except Exception as e:
+                logging.error(f"Error in auth server: {e}")
+                self.auth_complete.emit(False)
         
+        self.server_thread = threading.Thread(target=server_thread_func)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+
+    def cleanup_auth_resources(self):
+        """Clean up authentication resources"""
+        if hasattr(self, 'server') and self.server:
+            self.server_should_shutdown = True
+            if hasattr(self, 'server_thread') and self.server_thread:
+                self.server_thread.join(timeout=1.0)
+
     def exchange_code_for_tokens(self):
         if not self.auth_code or not self.code_verifier:
             return False

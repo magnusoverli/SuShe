@@ -989,45 +989,52 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if not hasattr(self, 'spotify_auth'):
             from spotify_auth import SpotifyAuth
             self.spotify_auth = SpotifyAuth(default_client_id)
+            self.spotify_auth.auth_complete.connect(self.on_spotify_auth_complete)
+            self.spotify_auth.auth_timeout.connect(self.on_spotify_auth_timeout)
         
         # Show a progress dialog while waiting for auth
-        progress = QProgressDialog("Waiting for Spotify login...", "Cancel", 0, 0, self)
-        progress.setWindowTitle("Spotify Authentication")
-        progress.setCancelButton(None)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
+        self.auth_progress = QProgressDialog("Waiting for Spotify login...", "Cancel", 0, 0, self)
+        self.auth_progress.setWindowTitle("Spotify Authentication")
+        self.auth_progress.setCancelButtonText("Cancel")
+        self.auth_progress.canceled.connect(self.cancel_spotify_auth)
+        self.auth_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self.auth_progress.show()
         
         # Start auth flow
-        self.spotify_auth.start_auth_flow()
+        self.spotify_auth.start_auth_flow(timeout_seconds=120)
+
+    def on_spotify_auth_complete(self, success):
+        """Handle Spotify authentication completion"""
+        if hasattr(self, 'auth_progress') and self.auth_progress:
+            self.auth_progress.close()
         
-        # Wait for auth code
-        max_wait_time = 120  # seconds
-        auth_complete = False
-        
-        for _ in range(max_wait_time * 10):  # Check every 100ms
-            QApplication.processEvents()
-            if self.spotify_auth.auth_code:
-                auth_complete = True
-                break
-            QThread.msleep(100)
-        
-        progress.close()
-        
-        if not auth_complete:
-            QMessageBox.warning(self, "Authentication Timeout", 
-                            "Spotify authentication timed out. Please try again.")
-            return
-        
-        # Exchange code for tokens
-        if self.spotify_auth.exchange_code_for_tokens():
-            # Save tokens to user data folder
-            tokens_path = self.get_user_data_path('spotify_tokens.json')
-            self.spotify_auth.save_tokens(tokens_path)
-            self.update_spotify_auth_status()
-            QMessageBox.information(self, "Success", "Successfully logged in to Spotify.")
+        if success and self.spotify_auth.auth_code:
+            # Exchange code for tokens
+            if self.spotify_auth.exchange_code_for_tokens():
+                # Save tokens to user data folder
+                tokens_path = self.get_user_data_path('spotify_tokens.json')
+                self.spotify_auth.save_tokens(tokens_path)
+                self.update_spotify_auth_status()
+                QMessageBox.information(self, "Success", "Successfully logged in to Spotify.")
+            else:
+                QMessageBox.warning(self, "Authentication Failed", 
+                                "Failed to obtain access tokens. Please try again.")
         else:
             QMessageBox.warning(self, "Authentication Failed", 
-                            "Failed to obtain access tokens. Please try again.")
+                            "Failed to authenticate with Spotify. Please try again.")
+
+    def on_spotify_auth_timeout(self):
+        """Handle Spotify authentication timeout"""
+        if hasattr(self, 'auth_progress') and self.auth_progress:
+            self.auth_progress.close()
+        
+        QMessageBox.warning(self, "Authentication Timeout", 
+                        "Spotify authentication timed out. Please try again.")
+
+    def cancel_spotify_auth(self):
+        """Handle cancellation of Spotify authentication"""
+        if hasattr(self, 'spotify_auth'):
+            self.spotify_auth.cleanup_auth_resources()
 
     def logout_from_spotify(self):
         """Log out from Spotify"""
@@ -1161,10 +1168,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Try refreshing the token if we have a refresh token
         if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:
-            if self.spotify_auth.refresh_access_token():
-                tokens_path = self.get_user_data_path('spotify_tokens.json')
-                self.spotify_auth.save_tokens(tokens_path)
-                return self.spotify_auth.access_token
+            # Use Worker to refresh token in a background thread
+            self.refresh_token_worker = Worker(self._refresh_token)
+            self.refresh_token_worker.finished.connect(self.on_token_refreshed)
+            self.refresh_token_worker.start()
+            return None  # Will need to retry after token is refreshed
         
         # If we get here, we need user to log in
         reply = QMessageBox.question(
@@ -1181,6 +1189,25 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 return self.spotify_auth.access_token
         
         return None
+
+    def _refresh_token(self):
+        """Worker function to refresh token"""
+        if self.spotify_auth.refresh_access_token():
+            tokens_path = self.get_user_data_path('spotify_tokens.json')
+            self.spotify_auth.save_tokens(tokens_path)
+            return True
+        return False
+
+    def on_token_refreshed(self, success):
+        """Handle token refresh completion"""
+        if success:
+            logging.info("Spotify token refreshed successfully")
+            # You might want to retry the operation that needed the token
+        else:
+            logging.warning("Failed to refresh Spotify token")
+            # Handle failed refresh - may need to prompt for login again
+            self.spotify_auth.access_token = None
+            self.update_spotify_auth_status()
 
     def search_artist(self):
         artist_name = self.search_input.text().strip()
