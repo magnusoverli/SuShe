@@ -79,6 +79,10 @@ class SpotifyAuth(QObject):
         timeout_thread.start()
         
     def start_auth_server(self):
+        """
+        Starts a local HTTP server to receive the OAuth callback from Spotify.
+        Handles port conflicts and other server errors gracefully.
+        """
         auth_instance = self
         
         class AuthHandler(BaseHTTPRequestHandler):
@@ -95,6 +99,13 @@ class SpotifyAuth(QObject):
                             self.end_headers()
                             self.wfile.write(b"<html><body><h2>Authentication Successful</h2><p>You can close this window now.</p></body></html>")
                             auth_instance.auth_complete.emit(True)
+                        elif "error" in params:
+                            error_msg = params["error"][0]
+                            self.send_response(400)
+                            self.send_header("Content-type", "text/html")
+                            self.end_headers()
+                            self.wfile.write(f"<html><body><h2>Authentication Failed</h2><p>Error: {error_msg}</p></body></html>".encode('utf-8'))
+                            auth_instance.auth_complete.emit(False)
                         else:
                             self.send_response(400)
                             self.send_header("Content-type", "text/html")
@@ -105,6 +116,10 @@ class SpotifyAuth(QObject):
                         auth_instance.server_should_shutdown = True
                 except Exception as e:
                     logging.error(f"Error in callback handler: {e}")
+                    self.send_response(500)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(f"<html><body><h2>Server Error</h2><p>{str(e)}</p></body></html>".encode('utf-8'))
                     auth_instance.auth_complete.emit(False)
             
             # Silence server logs
@@ -113,24 +128,56 @@ class SpotifyAuth(QObject):
         
         def server_thread_func():
             try:
+                # Try to create the server - this will fail if the port is already in use
                 self.server = HTTPServer(('localhost', self.redirect_port), AuthHandler)
+                logging.info(f"Started authentication server on port {self.redirect_port}")
+                
+                # Process requests until shutdown is signaled
                 while not self.server_should_shutdown:
                     self.server.handle_request()
+                
+                # Clean up server resources
+                logging.info("Shutting down authentication server")
                 self.server.server_close()
+                self.server = None
+                
+            except OSError as e:
+                logging.error(f"Error starting authentication server: {e}")
+                if "address already in use" in str(e).lower():
+                    # Specific error for port conflict
+                    logging.error(f"Port {self.redirect_port} is already in use. Cannot start authentication server.")
+                    auth_instance.auth_complete.emit(False)
+                else:
+                    # Other OS errors
+                    logging.error(f"OS error starting authentication server: {e}")
+                    auth_instance.auth_complete.emit(False)
+                    
             except Exception as e:
-                logging.error(f"Error in auth server: {e}")
-                self.auth_complete.emit(False)
+                # Catch any other exceptions
+                logging.error(f"Unexpected error in authentication server: {e}")
+                auth_instance.auth_complete.emit(False)
         
+        # Reset server state before starting
+        self.server = None
+        self.server_should_shutdown = False
+        
+        # Start the server in a separate thread
         self.server_thread = threading.Thread(target=server_thread_func)
         self.server_thread.daemon = True
         self.server_thread.start()
+        
+        logging.info("Authentication server thread started")
 
     def cleanup_auth_resources(self):
         """Clean up authentication resources"""
+        logging.info("Cleaning up authentication resources")
         if hasattr(self, 'server') and self.server:
             self.server_should_shutdown = True
             if hasattr(self, 'server_thread') and self.server_thread:
                 self.server_thread.join(timeout=1.0)
+                logging.info("Authentication server thread joined")
+        self.server = None
+        logging.info("Authentication resources cleaned up")
 
     def exchange_code_for_tokens(self):
         if not self.auth_code or not self.code_verifier:

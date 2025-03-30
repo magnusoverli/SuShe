@@ -345,6 +345,7 @@ class QTextEditLogger(logging.Handler, QObject):
         self.buffer.clear()
 
 class SpotifyAlbumAnalyzer(QMainWindow):
+    auth_required_signal = pyqtSignal()
     def __init__(self, text_edit_logger):
         super().__init__()
         self.statusBar().showMessage("Welcome to SuShe!", 5000)
@@ -365,6 +366,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         # Initialize search-related variables
         self.matches = []
         self.current_match_index = -1
+
+        self.auth_required_signal.connect(self.show_auth_required_dialog)
 
     def perform_initialization(self):
         # Initialize UI and other components
@@ -434,6 +437,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.notification_image_label.setStyleSheet("border: none;")
         self.notification_image_label.setGeometry(0, 0, 100, 100)
         self.notification_image_label.hide()
+
+    def show_auth_required_dialog(self):
+        """Shows the auth required dialog on the main thread"""
+        logging.info("Showing authentication required dialog on main thread")
+        reply = QMessageBox.question(
+            self, "Spotify Login Required", 
+            "You need to log in to Spotify to continue. Would you like to log in now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.tabs.setCurrentWidget(self.settings_tab)
+            self.login_to_spotify()
 
     def create_action(self, name, shortcut=None, triggered=None, icon_path=None):
         action = QAction(name, self)
@@ -1232,7 +1248,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         # Default client ID embedded in app
         default_client_id = "2241ba6e592a4d60aa18c81a8507f0b3"  # Replace with your client ID
         
-        if not hasattr(self, 'spotify_auth'):
+        # Clean up any existing auth resources first
+        if hasattr(self, 'spotify_auth'):
+            self.spotify_auth.cleanup_auth_resources()
+        else:
             from spotify_auth import SpotifyAuth
             self.spotify_auth = SpotifyAuth(default_client_id)
             self.spotify_auth.auth_complete.connect(self.on_spotify_auth_complete)
@@ -1281,10 +1300,20 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         """Handle cancellation of Spotify authentication"""
         if hasattr(self, 'spotify_auth'):
             self.spotify_auth.cleanup_auth_resources()
+        
+        if hasattr(self, 'auth_progress') and self.auth_progress:
+            self.auth_progress.close()
+            self.auth_progress = None
+            
+        logging.info("Spotify authentication cancelled by user")
 
     def logout_from_spotify(self):
         """Log out from Spotify"""
         if hasattr(self, 'spotify_auth'):
+            # Clean up any existing server resources first
+            self.spotify_auth.cleanup_auth_resources()
+            
+            # Clear tokens
             self.spotify_auth.access_token = None
             self.spotify_auth.refresh_token = None
             
@@ -1293,6 +1322,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             if os.path.exists(tokens_path):
                 try:
                     os.remove(tokens_path)
+                    logging.info("Spotify token file removed successfully")
                 except Exception as e:
                     logging.error(f"Failed to remove token file: {e}")
             
@@ -1420,7 +1450,18 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.refresh_token_worker.start()
             return None  # Will need to retry after token is refreshed
         
-        # If we get here, we need user to log in
+        # If we're in the main thread, show dialog directly
+        if QThread.currentThread() == QApplication.instance().thread():
+            return self.show_auth_required_and_get_token()
+        else:
+            # We're in a worker thread, emit signal and return None
+            logging.info("Auth required from worker thread - emitting signal")
+            self.auth_required_signal.emit()
+            return None
+
+    def show_auth_required_and_get_token(self):
+        """Shows auth dialog and returns token if successful"""
+        logging.info("Showing auth required dialog and getting token")
         reply = QMessageBox.question(
             self, "Spotify Login Required", 
             "You need to log in to Spotify to continue. Would you like to log in now?",
@@ -1471,7 +1512,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def _search_artist(self, artist_name):
         access_token = self.get_access_token()
         if not access_token:
-            return {"error": "Failed to obtain access token"}
+            return {"error": "Authentication required"}
 
         url = f"https://api.spotify.com/v1/search"
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -1493,8 +1534,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def on_artists_fetched(self, result):
         QApplication.restoreOverrideCursor()
         if "error" in result:
-            logging.error(f"Error fetching artists: {result['error']}")
-            return
+            if result["error"] == "Authentication required":
+                # Don't show an error message here since we've already
+                # prompted the user via the signal/slot mechanism
+                logging.info("Authentication required for artist search")
+                return
+            else:
+                logging.error(f"Error fetching artists: {result['error']}")
+                QMessageBox.warning(self, "Error", f"Failed to fetch artists: {result['error']}")
+                return
 
         artists = result.get("artists", {}).get("items", [])
         logging.info(f"Fetched {len(artists)} artists")
@@ -1527,7 +1575,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def _fetch_artist_albums(self, artist_id):
         access_token = self.get_access_token()
         if not access_token:
-            return {"error": "Failed to obtain access token"}
+            return {"error": "Authentication required"}
 
         url = f"https://api.spotify.com/v1/artists/{artist_id}/albums"
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -1548,8 +1596,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def on_albums_fetched(self, result):
         QApplication.restoreOverrideCursor()
         if "error" in result:
-            logging.error(f"Error fetching albums: {result['error']}")
-            return
+            if result["error"] == "Authentication required":
+                # Don't show an error message here since we've already
+                # prompted the user via the signal/slot mechanism
+                logging.info("Authentication required for album fetch")
+                return
+            else:
+                logging.error(f"Error fetching albums: {result['error']}")
+                QMessageBox.warning(self, "Error", f"Failed to fetch albums: {result['error']}")
+                return
 
         albums = result.get('items', [])
         logging.info(f"Fetched {len(albums)} albums")
@@ -1561,7 +1616,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             display_text = f"{album['name']} - {album['release_date'][:4]}"
             self.album_list.addItem(display_text)
             self.album_id_map[display_text] = album['id']
-        self.album_list.blockSignals(False)  # Unblock signals after updates
+        self.album_list.blockSignals(False)
 
     def fetch_album_details(self, item):
         album_text = item.text()
