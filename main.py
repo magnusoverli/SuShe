@@ -1,10 +1,10 @@
 # main.py
 
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QTableWidget, QTableWidgetItem, QMessageBox,
-                             QProgressDialog, QAbstractItemView, QHeaderView)
-from PyQt6.QtGui import QAction, QImage, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QBrush
-from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl)
+                             QLineEdit, QPushButton, QListWidget, QTableWidgetItem, QMessageBox,
+                             QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle, QStyleOption)
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter
+from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint)
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -19,7 +19,7 @@ import sys
 import urllib.parse
 import subprocess
 
-# Import worker classes from workers.py
+from album_model import AlbumModel
 
 from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog, SendGenreDialog
 from workers import DownloadWorker, SubmitWorker, Worker
@@ -27,7 +27,7 @@ from image_handler import ImageWidget
 from menu_bar import MenuBar
 
 from delegates import (
-    ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags
+    ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags, CoverImageDelegate
 )
 
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -86,6 +86,141 @@ def read_file_lines(filepath, transform=None):
     except Exception as e:
         logging.error(f"Failed to read file {filepath}: {e}")
         return []
+
+class DragDropTableView(QTableView):
+    """
+    Custom TableView with enhanced drag and drop visual cues.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setShowGrid(True)
+        self.horizontalHeader().setHighlightSections(False)
+        self.verticalHeader().setHighlightSections(False)
+        
+        # Track the drop position as a simple row index
+        self.drop_position = -1
+        self.drag_active = False
+
+    def dragEnterEvent(self, event):
+        self.drag_active = True
+        super().dragEnterEvent(event)
+
+    def dragLeaveEvent(self, event):
+        self.drag_active = False
+        self.drop_position = -1
+        self.viewport().update()
+        super().dragLeaveEvent(event)
+
+    def dropMimeData(self, data, action, row, column, parent):
+        # Store the exact drop position to be used in the model
+        self.drop_position = row if row != -1 else self.model().rowCount()
+        return super().dropMimeData(data, action, row, column, parent)
+
+    def dragMoveEvent(self, event):
+        y_position = int(event.position().y())
+        
+        # Calculate drop position
+        row = self.rowAt(y_position)
+        
+        if row == -1:
+            # If no row at position, determine if we're above first row or below last row
+            if self.model().rowCount() > 0:
+                first_row_rect = self.visualRect(self.model().index(0, 0))
+                last_row_rect = self.visualRect(self.model().index(self.model().rowCount()-1, 0))
+                
+                if y_position < first_row_rect.top():
+                    # Above first row
+                    self.drop_position = 0
+                else:
+                    # Below last row
+                    self.drop_position = self.model().rowCount()
+            else:
+                # Empty table
+                self.drop_position = 0
+        else:
+            # Get the rectangle for the current row
+            row_rect = self.visualRect(self.model().index(row, 0))
+            
+            # If cursor is in the top half of the row, place above; otherwise, below
+            if y_position < (row_rect.top() + row_rect.height() / 3):
+                self.drop_position = row
+            else:
+                self.drop_position = row + 1
+        
+        self.viewport().update()
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        result = super().dropEvent(event)
+        self.drag_active = False
+        self.drop_position = -1
+        self.viewport().update()
+        return result
+
+    def paintEvent(self, event):
+        # First, let the parent class handle normal painting
+        super().paintEvent(event)
+        
+        # Add our custom drop indicator if we're in a drag operation
+        if self.drag_active and self.drop_position >= 0:
+            painter = QPainter(self.viewport())
+            
+            # Calculate line position
+            if self.drop_position >= self.model().rowCount():
+                # After the last row
+                if self.model().rowCount() > 0:
+                    last_row_rect = self.visualRect(self.model().index(self.model().rowCount()-1, 0))
+                    line_y = last_row_rect.bottom()
+                else:
+                    # Empty table, draw at the top after header
+                    header_height = self.horizontalHeader().height()
+                    line_y = header_height
+            else:
+                # Before a specific row (which might be the first row)
+                row_rect = self.visualRect(self.model().index(self.drop_position, 0))
+                line_y = row_rect.top()
+            
+            # Draw a thick line at the insertion point
+            pen = QPen(QColor("#1DB954"), 3, Qt.PenStyle.SolidLine)
+            painter.setPen(pen)
+            
+            line_width = self.viewport().width()
+            painter.drawLine(0, line_y, line_width, line_y)
+            
+            # Draw an arrow on the left side
+            arrow_size = 8
+            arrow_points = [
+                QPoint(10, line_y - arrow_size),
+                QPoint(10 + arrow_size, line_y),
+                QPoint(10, line_y + arrow_size)
+            ]
+            
+            painter.setBrush(QColor("#1DB954"))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawPolygon(arrow_points)
+
+class DropIndicatorStyle(QProxyStyle):
+    """
+    Custom style to enhance drop indicator appearance.
+    """
+    def drawPrimitive(self, element, option, painter, widget=None):
+        # Customize the drop indicator
+        if element == QStyle.PrimitiveElement.PE_IndicatorItemViewItemDrop:
+            pen = QPen(QColor("#1DB954"), 2)  # Spotify green, thicker line
+            painter.setPen(pen)
+            
+            # Draw a more visible indicator line
+            if option.rect.height() == 0:
+                # This is a line drop indicator (between rows)
+                painter.drawLine(option.rect.topLeft(), option.rect.topRight())
+            else:
+                # This is a full rect indicator (on a row)
+                painter.drawRect(option.rect)
+                
+            return
+            
+        # Use the parent style for everything else
+        super().drawPrimitive(element, option, painter, widget)
 
 class QTextEditLogger(logging.Handler, QObject):
     log_signal = pyqtSignal(str)
@@ -559,20 +694,20 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.current_match_index = -1
             return
 
-        # Columns to search
-        columns_to_search = [0, 1, 5, 6, 7]  # Artist, Album, Genre 1, Genre 2, Comments
+        # Columns to search - don't use range(self.album_table.columnCount())
+        # Instead use specific column constants from the model
+        columns_to_search = [AlbumModel.ARTIST, AlbumModel.ALBUM, 
+                            AlbumModel.GENRE_1, AlbumModel.GENRE_2, 
+                            AlbumModel.COMMENTS]
 
         # Find matches
-        for row in range(self.album_table.rowCount()):
+        for row in range(self.album_model.rowCount()):
             for column in columns_to_search:
                 item_text = ""
-                item = self.album_table.item(row, column)
-                widget = self.album_table.cellWidget(row, column)
-
-                if item:
-                    item_text = item.text().lower()
-                elif widget and isinstance(widget, QLabel):
-                    item_text = strip_html_tags(widget.text()).lower()
+                # Use model data instead of table items
+                data = self.album_model.data(self.album_model.index(row, column), Qt.ItemDataRole.DisplayRole)
+                if data:
+                    item_text = str(data).lower()
 
                 if search_text in item_text:
                     self.matches.append((row, column))
@@ -586,8 +721,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
         self.current_match_index = (self.current_match_index + 1) % len(self.matches)
         row, column = self.matches[self.current_match_index]
-        self.album_table.scrollToItem(self.album_table.item(row, column) or self.album_table.item(row, 0), QAbstractItemView.ScrollHint.PositionAtCenter)
-        self.album_table.setCurrentCell(row, column)
+        self.album_table.scrollTo(self.album_model.index(row, column), QTableView.ScrollHint.PositionAtCenter)
+        self.album_table.selectionModel().select(
+            self.album_model.index(row, column),
+            QItemSelectionModel.SelectionFlag.ClearAndSelect
+        )
 
     def goto_previous_match(self):
         if not self.matches:
@@ -786,65 +924,72 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def setup_album_list_tab(self):
         layout = QVBoxLayout()
 
-        self.album_table = QTableWidget()
-        self.album_table.setColumnCount(8)
-        self.album_table.setHorizontalHeaderLabels([
-            "Artist", "Album", "Release Date", "Cover Image",
-            "Country", "Genre 1", "Genre 2", "Comments"
-        ])
-        layout.addWidget(self.album_table)
-
-        # Create separate delegate instances for countries and genres
+        # Create our custom TableView instead of a standard QTableView
+        self.album_table = DragDropTableView()
+        
+        # Create and set the model
+        self.album_model = AlbumModel(self)
+        self.album_table.setModel(self.album_model)
+        
+        # Configure the view for drag and drop
+        self.album_table.setDragEnabled(True)
+        self.album_table.setAcceptDrops(True)
+        self.album_table.setDropIndicatorShown(True)
+        self.album_table.setDragDropMode(QTableView.DragDropMode.InternalMove)
+        self.album_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        
+        # Enable editing with appropriate triggers
+        self.album_table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | 
+                                        QTableView.EditTrigger.EditKeyPressed |
+                                        QTableView.EditTrigger.AnyKeyPressed)
+        
+        # IMPORTANT: Disable sorting
+        self.album_table.setSortingEnabled(False)
+        
+        # Make header non-clickable
+        self.album_table.horizontalHeader().setSectionsClickable(False)
+        
+        # Set column headers to fixed mode
+        self.album_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        
+        # Create separate delegate instances properly parented to the view
         country_delegate = ComboBoxDelegate(self.countries, self.album_table)
         self.genre_delegate_1 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
         self.genre_delegate_2 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        cover_delegate = CoverImageDelegate(self.album_table)
 
         # Assign delegates to respective columns
-        self.album_table.setItemDelegateForColumn(4, country_delegate)      # 'Country' column
-        self.album_table.setItemDelegateForColumn(5, self.genre_delegate_1)  # 'Genre 1' column
-        self.album_table.setItemDelegateForColumn(6, self.genre_delegate_2)  # 'Genre 2' column
+        self.album_table.setItemDelegateForColumn(AlbumModel.COUNTRY, country_delegate)
+        self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_1, self.genre_delegate_1)
+        self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_2, self.genre_delegate_2)
+        self.album_table.setItemDelegateForColumn(AlbumModel.COVER_IMAGE, cover_delegate)
 
         # Set the search highlight delegate for specified columns
-        self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
-        for column in [0, 1, 7]:  # Columns to search: Artist, Album, Comments
+        for column in [AlbumModel.ARTIST, AlbumModel.ALBUM, AlbumModel.COMMENTS]:
             self.album_table.setItemDelegateForColumn(column, self.search_delegate)
 
         # Connect signals
-        self.album_table.cellClicked.connect(self.handleCellClick)
+        self.album_table.clicked.connect(self.handleCellClick)
         self.album_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.album_table.customContextMenuRequested.connect(self.show_context_menu)
 
-        # Enable sorting
-        self.album_table.setSortingEnabled(True)
+        # Connect model change signals to update UI state
+        self.album_model.dataChanged.connect(self.on_album_data_changed)
+        
+        # Add to layout
+        layout.addWidget(self.album_table)
 
-        # Set the column widths here
+        # Set the column widths
         self.set_album_table_column_widths()
 
         # Set the layout for the album list tab
         self.album_list_tab.setLayout(layout)
 
-        # Connect additional signals
-        self.album_table.horizontalHeader().sortIndicatorChanged.connect(self.on_sort_order_changed)
-        self.album_table.itemChanged.connect(self.on_album_item_changed)
-
-    def on_album_item_changed(self, item):
-        # Get the row and column of the changed item
-        row = item.row()
-        column = item.column()
-        column_name = self.album_table.horizontalHeaderItem(column).text()
-        new_value = item.text()
-
-        # Get the artist and album name for context
-        artist = self.album_table.item(row, 0).text() if self.album_table.item(row, 0) else ""
-        album = self.album_table.item(row, 1).text() if self.album_table.item(row, 1) else ""
-
-        logging.info(f"Data changed in row {row}, column '{column_name}': '{artist}' - '{album}' set '{column_name}' to '{new_value}'")
-
-        self.dataChanged = True
-        self.update_window_title()
-
     def on_sort_order_changed(self, column, order):
-        column_name = self.album_table.horizontalHeaderItem(column).text()
+        # Don't use self.album_table.horizontalHeaderItem(column).text()
+        # Use the model's column names instead
+        column_name = self.album_model.COLUMN_NAMES[column]
         order_str = 'ascending' if order == Qt.SortOrder.AscendingOrder else 'descending'
         logging.info(f"Album table sorted by column '{column_name}' in {order_str} order")
 
@@ -853,7 +998,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setColumnWidth(0, 130)  # "Artist" column
         self.album_table.setColumnWidth(1, 200)  # "Album" column
         self.album_table.setColumnWidth(2, 120)  # "Release Date" column
-        self.album_table.setColumnWidth(3, 120)  # "Cover Image" column (adjusted width)
+        self.album_table.setColumnWidth(3, 120)  # "Cover Image" column
         self.album_table.setColumnWidth(4, 170)  # "Country" column
         self.album_table.setColumnWidth(5, 190)  # "Genre 1" column
         self.album_table.setColumnWidth(6, 190)  # "Genre 2" column
@@ -861,7 +1006,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         # Set fixed column sizes
         header = self.album_table.horizontalHeader()
-        for i in range(self.album_table.columnCount()):
+        # Use model.columnCount() instead of view.columnCount()
+        for i in range(self.album_model.columnCount()):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
 
     def setup_settings_tab(self):
@@ -1361,6 +1507,23 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except ValueError:
             return date_str  # Return the original string if it cannot be parsed
 
+    def on_album_data_changed(self, topLeft, bottomRight, roles):
+        """Called when the album model data changes"""
+        # Update main window's dataChanged flag
+        self.dataChanged = self.album_model.is_modified
+        self.update_window_title()
+        
+        # Log the change if we have a valid index
+        if topLeft.isValid():
+            row = topLeft.row()
+            column = topLeft.column()
+            column_name = self.album_model.COLUMN_NAMES[column]
+            artist = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), Qt.ItemDataRole.DisplayRole)
+            album = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.DisplayRole)
+            new_value = self.album_model.data(topLeft, Qt.ItemDataRole.DisplayRole)
+            
+            logging.info(f"Data changed in row {row}, column '{column_name}': '{artist}' - '{album}' set '{column_name}' to '{new_value}'")
+
     def on_album_details_fetched(self, result):
         QApplication.restoreOverrideCursor()
         if "error" in result:
@@ -1369,21 +1532,24 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
 
         # Extract album details
-        main_artist_name = result['artists'][0]['name'] if result['artists'] else 'Unknown Artist'
+        artist_name = result['artists'][0]['name'] if result['artists'] else 'Unknown Artist'
         album_name = result.get('name', 'Unknown Album')
         release_date = result.get('release_date', 'Unknown Release Date')
         album_id = result.get('id', '')
 
-        logging.info(f"Album details fetched: '{album_name}' by '{main_artist_name}' released on '{release_date}'")
+        logging.info(f"Album details fetched: '{album_name}' by '{artist_name}' released on '{release_date}'")
 
         # Convert release date to DD-MM-YYYY format
         release_date_formatted = self.format_date_dd_mm_yyyy(release_date)
 
         # Check if the album is already in the list
         is_album_in_list = False
-        for row in range(self.album_table.rowCount()):
-            existing_album_item = self.album_table.item(row, 1)
-            if existing_album_item and existing_album_item.text() == album_name:
+        for row in range(self.album_model.rowCount()):
+            existing_album = self.album_model.data(
+                self.album_model.index(row, AlbumModel.ALBUM), 
+                Qt.ItemDataRole.DisplayRole
+            )
+            if existing_album == album_name:
                 is_album_in_list = True
                 break
 
@@ -1406,45 +1572,33 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 image_bytes = buffered.getvalue()
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-                # Create QPixmap from image bytes
-                qt_image = QImage.fromData(image_bytes)
-                pixmap = QPixmap.fromImage(qt_image)
+                # Create album data dictionary
+                album_data = {
+                    "artist": artist_name,  # Use artist_name instead of main_artist_name
+                    "album": album_name,
+                    "album_id": album_id,
+                    "release_date": release_date_formatted,
+                    "cover_image": base64_image,
+                    "cover_image_format": "PNG",
+                    "country": "Country",
+                    "genre_1": "Genre 1",
+                    "genre_2": "Genre 2",
+                    "comments": "Comment",
+                    "rank": self.album_model.rowCount() + 1,
+                    "points": 1
+                }
 
-                # Add album details to the table
-                row_position = self.album_table.rowCount()
-                self.album_table.insertRow(row_position)
-                self.album_table.setItem(row_position, 0, QTableWidgetItem(main_artist_name))
-
-                # Use QTableWidgetItem for the album name
-                album_item = QTableWidgetItem(album_name)
-                album_item.setData(Qt.ItemDataRole.UserRole, album_id)  # Store album_id in UserRole
-                self.album_table.setItem(row_position, 1, album_item)
-
-                self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_formatted))
-
-                image_widget = ImageWidget(parent=self.album_table)
-                self.album_table.setCellWidget(row_position, 3, image_widget)
-                image_widget.setImageAsync(image_data=image_data, size=(200, 200), format="PNG")
-                image_widget.base64_image = base64_image  # Store base64 image for saving
-                self.album_table.setRowHeight(row_position, 100)
-
-                # Add placeholder/default values for the rest of the columns
-                default_country = "Country"
-                default_genre_1 = "Genre 1"
-                default_genre_2 = "Genre 2"
-                default_comments = "Comment"
-
-                self.album_table.setItem(row_position, 4, QTableWidgetItem(default_country))
-                self.album_table.setItem(row_position, 5, QTableWidgetItem(default_genre_1))
-                self.album_table.setItem(row_position, 6, QTableWidgetItem(default_genre_2))
-                self.album_table.setItem(row_position, 7, QTableWidgetItem(default_comments))
-
-                self.dataChanged = True  # Set flag to True when album details are fetched and added
+                # Add the album to the model
+                self.album_model.add_album(album_data)
+                
+                # Set the row height for the new row
+                self.album_table.setRowHeight(self.album_model.rowCount() - 1, 100)
+                
+                # Update the changed flags
+                self.dataChanged = self.album_model.is_modified
                 self.update_window_title()
-                # Set column widths after adding data
-                self.set_album_table_column_widths()
 
-                # Show the notification without the image path
+                # Show the notification
                 self.show_notification(f"Added album '{album_name}'")
             else:
                 logging.error("Failed to download the album cover image.")
@@ -1516,40 +1670,56 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
     def show_context_menu(self, position):
+        """Show context menu for album table."""
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
-        open_album_action = context_menu.addAction("Open Album")  # Add "Open Album" option
+        open_album_action = context_menu.addAction("Open Album")
         action = context_menu.exec(self.album_table.viewport().mapToGlobal(position))
 
         if action == remove_action:
             index = self.album_table.indexAt(position)
             if index.isValid():
-                self.remove_album(index.row())
-        elif action == open_album_action:  # Handle "Open Album" action
+                # Get info for logging before removing
+                row = index.row()
+                artist = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), Qt.ItemDataRole.DisplayRole)
+                album = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.DisplayRole)
+                logging.info(f"Removing album '{album}' by '{artist}' from row {row}")
+                
+                self.remove_album(row)
+        elif action == open_album_action:
             index = self.album_table.indexAt(position)
             if index.isValid():
-                album_item = self.album_table.item(index.row(), 1)
-                if album_item:
-                    album_id = album_item.data(Qt.ItemDataRole.UserRole)
-                    artist_name = self.album_table.item(index.row(), 0).text()
-                    album_name = album_item.text()
-                    album_url = self.get_album_url(album_id, artist_name, album_name)
-                    self.open_album_url(album_url)
+                row = index.row()
+                album_id = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.UserRole)
+                artist_name = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), Qt.ItemDataRole.DisplayRole)
+                album_name = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.DisplayRole)
+                album_url = self.get_album_url(album_id, artist_name, album_name)
+                self.open_album_url(album_url)
 
     def remove_album(self, row):
-        # Verify if the row is within valid range before attempting to remove
-        if 0 <= row < self.album_table.rowCount():
-            artist = self.album_table.item(row, 0).text() if self.album_table.item(row, 0) else ""
-            album = self.album_table.item(row, 1).text() if self.album_table.item(row, 1) else ""
-            logging.info(f"Removing album '{album}' by '{artist}' from row {row}")
-            self.album_table.removeRow(row)
-            self.dataChanged = True
+        """Remove an album from the model."""
+        if self.album_model.remove_album(row):
+            # Update the main window's dataChanged flag
+            self.dataChanged = self.album_model.is_modified
             self.update_window_title()
+            return True
+        return False
 
-    def handleCellClick(self, row, column):
-        if column in [5, 6, 4]:  # Adjust column indexes
-            index = self.album_table.model().index(row, column)
-            self.album_table.edit(index)
+    def handleCellClick(self, index):
+        """Handle clicks on table cells (updated for QTableView)"""
+        # With proper edit triggers set above, we don't need to manually call edit()
+        # Just log the click if needed for debugging
+        column = index.column()
+        row = index.row()
+        
+        # Only log editable column clicks
+        if column in [AlbumModel.COUNTRY, AlbumModel.GENRE_1, AlbumModel.GENRE_2]:
+            logging.debug(f"Clicked on editable cell: row={row}, column={column}")
+        
+        # For album column, we might want to handle URL opening
+        if column == AlbumModel.ALBUM:
+            # The URL handling could go here if needed
+            pass
 
     def trigger_save_album_data(self):
         if self.current_file_path:
@@ -1662,62 +1832,28 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return {}
 
     def save_album_data(self, file_path, points_mapping):
-        album_data = []
-        for row in range(self.album_table.rowCount()):
-            rank = row + 1  # Rank is determined by the row position + 1
-            points = points_mapping.get(str(rank), 1)  # Use mapping to get points, default to 1 if rank is not in mapping
-
-            artist = self.album_table.item(row, 0).text() if self.album_table.item(row, 0) else ""
-
-            album_item = self.album_table.item(row, 1)
-            if album_item:
-                album_name = album_item.text()
-                album_id = album_item.data(Qt.ItemDataRole.UserRole)
-            else:
-                album_name = ""
-                album_id = ""
-
-            release_date = self.album_table.item(row, 2).text() if self.album_table.item(row, 2) else ""
-
-            row_data = {
-                "artist": artist,
-                "album": album_name,
-                "album_id": album_id,
-                "release_date": release_date,
-                "cover_image": None,  # Will be set below
-                "cover_image_format": None,  # New key for image format
-                "country": self.album_table.item(row, 4).text() if self.album_table.item(row, 4) else "",
-                "genre_1": self.album_table.item(row, 5).text() if self.album_table.item(row, 5) else "",
-                "genre_2": self.album_table.item(row, 6).text() if self.album_table.item(row, 6) else "",
-                "comments": self.album_table.item(row, 7).text() if self.album_table.item(row, 7) else "",
-                "rank": rank,  # Include "Rank"
-                "points": points,  # Include "Points"
-            }
-
-            # Retrieve the base64 image and its format from the ImageWidget
-            image_widget = self.album_table.cellWidget(row, 3)
-            if image_widget and hasattr(image_widget, 'base64_image') and image_widget.base64_image:
-                row_data["cover_image"] = image_widget.base64_image
-                row_data["cover_image_format"] = image_widget.image_processor.format  # Store the format
-            else:
-                row_data["cover_image"] = None
-                row_data["cover_image_format"] = None
-
-            album_data.append(row_data)
-
+        # Get album data from the model
+        album_data = self.album_model.get_album_data()
+        
+        # Update ranks and points based on the current order
+        for i, album in enumerate(album_data):
+            rank = i + 1
+            album["rank"] = rank
+            album["points"] = points_mapping.get(str(rank), 1)
+        
         try:
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(album_data, file, indent=4)
             logging.info(f"Album data saved to {file_path}.")
+            
+            # Reset the changed flags
+            self.album_model.is_modified = False
+            self.dataChanged = False
+            self.update_window_title()
         except Exception as e:
             logging.error(f"Failed to save album data to {file_path}: {e}")
             QMessageBox.critical(self, "Save Error", f"Failed to save album data: {e}")
             return
-
-        # Reset the dataChanged flag after saving
-        self.dataChanged = False
-        self.update_window_title()
-        logging.debug(f"Album data saved to {file_path}. dataChanged set to False.")
 
     def export_album_data_html(self):
         file_path, _ = QFileDialog.getSaveFileName(
@@ -1821,54 +1957,17 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             QMessageBox.critical(self, "Load Error", f"An unexpected error occurred: {e}")
             return
 
-        self.album_table.blockSignals(True)  # Block signals before changing the table
-        self.album_table.setRowCount(0)
-        for row_data in album_data:
-            row_pos = self.album_table.rowCount()
-            self.album_table.insertRow(row_pos)
-
-            self.album_table.setItem(row_pos, 0, QTableWidgetItem(row_data.get("artist", "")))
-
-            album_name = row_data.get("album", "Unknown Album")
-            album_id = row_data.get("album_id", "")
-            artist_name = row_data.get("artist", "Unknown Artist")
-            album_url = self.get_album_url(album_id, artist_name, album_name)
-
-            album_item = QTableWidgetItem(album_name)
-            album_item.setData(Qt.ItemDataRole.UserRole, album_id)  # Store album_id in UserRole
-            self.album_table.setItem(row_pos, 1, album_item)
-
-            release_date = row_data.get("release_date", "Unknown Release Date")
-            self.album_table.setItem(row_pos, 2, QTableWidgetItem(release_date))
-
-            # Handle cover image decoding
-            base64_image = row_data.get("cover_image")
-            cover_image_format = row_data.get("cover_image_format", "PNG")  # Default to PNG if not specified
-            if base64_image:
-                try:
-                    image_bytes = base64.b64decode(base64_image)
-                    # Create ImageWidget and set it in the table asynchronously
-                    image_widget = ImageWidget(parent=self.album_table)
-                    self.album_table.setCellWidget(row_pos, 3, image_widget)
-                    image_widget.setImageAsync(image_data=image_bytes, size=(200, 200), format=cover_image_format)
-                    # No need to set base64_image manually
-                    self.album_table.setRowHeight(row_pos, 100)
-                except Exception as e:
-                    logging.error(f"Failed to load cover image for album '{album_name}': {e}")
-                    self.album_table.setItem(row_pos, 3, QTableWidgetItem("Image Load Failed"))
-            else:
-                self.album_table.setItem(row_pos, 3, QTableWidgetItem())
-
-            self.album_table.setItem(row_pos, 4, QTableWidgetItem(row_data.get("country", "")))
-            self.album_table.setItem(row_pos, 5, QTableWidgetItem(row_data.get("genre_1", "")))
-            self.album_table.setItem(row_pos, 6, QTableWidgetItem(row_data.get("genre_2", "")))
-            self.album_table.setItem(row_pos, 7, QTableWidgetItem(row_data.get("comments", "")))
-
-        # Set column widths after loading data
-        self.set_album_table_column_widths()
-        self.album_table.blockSignals(False)
-
-        self.album_table.sortItems(2, Qt.SortOrder.DescendingOrder)
+        # Load data into the model instead of using setRowCount
+        self.album_model.set_album_data(album_data)
+        
+        # Set row heights for cover images
+        for row in range(self.album_model.rowCount()):
+            self.album_table.setRowHeight(row, 100)
+        
+        # Set the current file path and reset changed flag
+        self.current_file_path = file_path
+        self.dataChanged = False
+        self.update_window_title()
 
     def close_album_data(self):
         if self.dataChanged:
@@ -1883,10 +1982,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             elif reply == QMessageBox.StandardButton.Cancel:
                 return  # Cancel the clear action
 
-        self.album_table.setRowCount(0)
-        self.dataChanged = False  # Reset flag after clearing data
-        self.current_file_path = None  # Reset current file path
-        self.update_window_title()  # Update window title
+        # Clear the model instead of using setRowCount(0)
+        self.album_model.clear()
+        self.dataChanged = False
+        self.current_file_path = None
+        self.update_window_title()
 
     def closeEvent(self, event):
         if self.dataChanged:

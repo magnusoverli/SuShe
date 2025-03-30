@@ -3,12 +3,12 @@
 from PyQt6.QtWidgets import (
     QStyledItemDelegate, QComboBox, QCompleter, QDoubleSpinBox, QMessageBox, QLabel, QStyle
 )
-from PyQt6.QtGui import QKeyEvent, QPalette, QColor, QPolygon
-from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPointF
+from PyQt6.QtGui import QKeyEvent, QPalette, QColor, QPolygon, QImage, QPixmap
+from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPoint
 import logging
 import re
 from html import unescape
-import os
+import base64
 
 
 def strip_html_tags(text):
@@ -24,6 +24,64 @@ def strip_html_tags(text):
     clean = re.compile('<.*?>')
     return unescape(re.sub(clean, '', text))
 
+class CoverImageDelegate(QStyledItemDelegate):
+    """
+    Delegate for rendering cover images in the album table view.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+    def paint(self, painter, option, index):
+        base64_image = index.data(Qt.ItemDataRole.UserRole)
+        if base64_image:
+            try:
+                painter.save()
+                
+                # Get the cell rect
+                rect = option.rect
+                
+                # Draw the background
+                parent = self.parent()
+                if parent:
+                    parent.style().drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+                    )
+                
+                # Decode the base64 image
+                image_bytes = base64.b64decode(base64_image)
+                image = QImage.fromData(image_bytes)
+                pixmap = QPixmap.fromImage(image)
+                
+                # Scale the pixmap to fit the cell while maintaining aspect ratio
+                scaled_pixmap = pixmap.scaled(
+                    rect.size(), 
+                    Qt.AspectRatioMode.KeepAspectRatio, 
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                
+                # Center the pixmap in the cell
+                x = rect.x() + (rect.width() - scaled_pixmap.width()) // 2
+                y = rect.y() + (rect.height() - scaled_pixmap.height()) // 2
+                
+                # Draw the pixmap
+                painter.drawPixmap(x, y, scaled_pixmap)
+                
+            except Exception as e:
+                logging.error(f"Error in CoverImageDelegate.paint: {e}")
+                painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, "Image Error")
+            finally:
+                painter.restore()
+        else:
+            # Draw "No Image" placeholder
+            painter.save()
+            parent = self.parent()
+            if parent:
+                parent.style().drawPrimitive(
+                    QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+                )
+            painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+            painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, "No Image")
+            painter.restore()
 
 class ComboBoxDelegate(QStyledItemDelegate):
     """
@@ -48,9 +106,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
         # Apply the dark background style to the completer popup
         completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
         comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
-
-        # Connect the 'currentIndexChanged' signal to commit data and close editor
-        comboBox.currentIndexChanged.connect(self.commitAndClose)
 
         return comboBox
 
@@ -82,30 +137,23 @@ class ComboBoxDelegate(QStyledItemDelegate):
             )
             painter.setPen(Qt.GlobalColor.white)
             painter.setBrush(QColor("#666666"))
-            points = [
-                QPoint(indicator_rect.left(), indicator_rect.top()),
-                QPoint(indicator_rect.right(), indicator_rect.top()),
-                QPoint(indicator_rect.left() + indicator_rect.width() // 2, indicator_rect.bottom())
-            ]
-            painter.drawPolygon(QPolygon(points))
+            
+            # Draw a simple rectangle instead of a polygon
+            painter.drawRect(indicator_rect)
+            
         except Exception as e:
             logging.error(f"Error in ComboBoxDelegate.paint: {e}")
         finally:
             painter.restore()
-
-    def commitAndClose(self):
-        """
-        Commits the data from the editor to the model and closes the editor.
-        """
-        editor = self.sender()  # Get the editor that sent the signal
-        self.commitData.emit(editor)
-        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
 
     def setEditorData(self, editor, index):
         """
         Sets the editor's current value based on the model's data.
         """
         value = index.model().data(index, Qt.ItemDataRole.EditRole)
+        if not value:
+            return
+            
         idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
         editor.setCurrentIndex(idx if idx >= 0 else -1)
 
@@ -113,7 +161,16 @@ class ComboBoxDelegate(QStyledItemDelegate):
         """
         Updates the model with the editor's current value.
         """
-        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+        new_value = editor.currentText().strip()
+        
+        # Don't set empty values - keep the placeholder
+        if not new_value:
+            return
+            
+        # Only update if the value actually changed
+        current_value = model.data(index, Qt.ItemDataRole.EditRole)
+        if new_value != current_value:
+            model.setData(index, new_value, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
         """
@@ -243,24 +300,16 @@ class GenreSearchDelegate(QStyledItemDelegate):
         completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
         comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
 
-        # Connect the 'currentIndexChanged' signal to commit data and close editor
-        comboBox.currentIndexChanged.connect(self.commitAndClose)
-
         return comboBox
-
-    def commitAndClose(self):
-        """
-        Commits the data from the editor to the model and closes the editor.
-        """
-        editor = self.sender()  # Get the editor that sent the signal
-        self.commitData.emit(editor)
-        self.closeEditor.emit(editor, QStyledItemDelegate.EndEditHint.NoHint)
 
     def setEditorData(self, editor, index):
         """
         Sets the editor's current value based on the model's data.
         """
         value = index.model().data(index, Qt.ItemDataRole.EditRole)
+        if not value:
+            return
+            
         idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
         editor.setCurrentIndex(idx if idx >= 0 else -1)
 
@@ -268,7 +317,16 @@ class GenreSearchDelegate(QStyledItemDelegate):
         """
         Updates the model with the editor's current value.
         """
-        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+        new_value = editor.currentText().strip()
+        
+        # Don't set empty values - keep the placeholder
+        if not new_value:
+            return
+            
+        # Only update if the value actually changed
+        current_value = model.data(index, Qt.ItemDataRole.EditRole)
+        if new_value != current_value:
+            model.setData(index, new_value, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
         """
@@ -294,54 +352,49 @@ class GenreSearchDelegate(QStyledItemDelegate):
             # Get the cell text
             data = index.data(Qt.ItemDataRole.DisplayRole)
             if not data:
-                # Handle QLabel cells (e.g., album names with hyperlinks)
-                widget = parent.cellWidget(index.row(), index.column())
-                if isinstance(widget, QLabel):
-                    data = strip_html_tags(widget.text())
+                data = ""
 
-            if data:
-                data_lower = data.lower()
-                if self.search_text and self.search_text in data_lower:
-                    # Prepare to draw the text with highlighted matches
-                    painter.setClipRect(option.rect)
-                    text_rect = option.rect.adjusted(5, 0, -20, 0)  # Leave space for dropdown indicator
+            data_str = str(data)
+            data_lower = data_str.lower()
+            
+            if self.search_text and self.search_text in data_lower:
+                # Prepare to draw the text with highlighted matches
+                painter.setClipRect(option.rect)
+                text_rect = option.rect.adjusted(5, 0, -20, 0)  # Leave space for dropdown indicator
 
-                    # Set up font metrics
-                    fm = painter.fontMetrics()
-                    text_height = fm.height()
-                    x = text_rect.left()
-                    y = text_rect.top() + (text_rect.height() - text_height) / 2
+                # Set up font metrics
+                fm = painter.fontMetrics()
+                text_height = fm.height()
+                x = text_rect.left()
+                y = text_rect.top() + (text_rect.height() - text_height) / 2
 
-                    # Split the text into segments
-                    segments = []
-                    start = 0
-                    while True:
-                        idx = data_lower.find(self.search_text, start)
-                        if idx == -1:
-                            segments.append((data[start:], False))
-                            break
-                        if idx > start:
-                            segments.append((data[start:idx], False))
-                        segments.append((data[idx:idx+len(self.search_text)], True))
-                        start = idx + len(self.search_text)
+                # Split the text into segments
+                segments = []
+                start = 0
+                while True:
+                    idx = data_lower.find(self.search_text, start)
+                    if idx == -1:
+                        segments.append((data_str[start:], False))
+                        break
+                    if idx > start:
+                        segments.append((data_str[start:idx], False))
+                    segments.append((data_str[idx:idx+len(self.search_text)], True))
+                    start = idx + len(self.search_text)
 
-                    # Draw each segment
-                    for segment, is_match in segments:
-                        segment_width = fm.horizontalAdvance(segment)
-                        segment_rect = QRectF(x, y, segment_width, text_height)
-                        if is_match:
-                            painter.fillRect(segment_rect, self.highlight_color)
-                        painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
-                        painter.drawText(QPointF(x, y + fm.ascent()), segment)
-                        x += segment_width
-                else:
-                    # No matches, draw text normally
-                    text_rect = option.rect.adjusted(5, 0, -20, 0)
+                # Draw each segment
+                for segment, is_match in segments:
+                    segment_width = fm.horizontalAdvance(segment)
+                    segment_rect = QRectF(x, y, segment_width, text_height)
+                    if is_match:
+                        painter.fillRect(segment_rect, self.highlight_color)
                     painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
-                    painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, data)
+                    painter.drawText(QPointF(x, y + fm.ascent()), segment)
+                    x += segment_width
             else:
-                # No data, draw nothing
-                pass
+                # No matches, draw text normally
+                text_rect = option.rect.adjusted(5, 0, -20, 0)
+                painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, data_str)
                 
             # Draw dropdown indicator
             indicator_rect = QRect(
@@ -351,12 +404,9 @@ class GenreSearchDelegate(QStyledItemDelegate):
             )
             painter.setPen(Qt.GlobalColor.white)
             painter.setBrush(QColor("#666666"))
-            points = [
-                QPoint(indicator_rect.left(), indicator_rect.top()),
-                QPoint(indicator_rect.right(), indicator_rect.top()),
-                QPoint(indicator_rect.left() + indicator_rect.width() // 2, indicator_rect.bottom())
-            ]
-            painter.drawPolygon(QPolygon(points))
+            
+            # Draw a simple rectangle instead of a polygon
+            painter.drawRect(indicator_rect)
             
         except Exception as e:
             logging.error(f"Error in GenreSearchDelegate.paint: {e}")
