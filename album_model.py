@@ -1,7 +1,8 @@
 # album_model.py
 
 from PyQt6.QtCore import (Qt, QAbstractTableModel, QModelIndex, QVariant, 
-                          QMimeData, QByteArray, QDataStream, QIODevice)
+                          QMimeData, QByteArray, QDataStream, QIODevice, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve, QAbstractAnimation
+)
 import logging
 
 class AlbumModel(QAbstractTableModel):
@@ -164,19 +165,23 @@ class AlbumModel(QAbstractTableModel):
         
         source_rows.sort()  # Sort the rows
         
-        # Critical: Adjust drop position based on which rows are being moved
-        rows_above_drop = sum(1 for r in source_rows if r < drop_row)
-        adjusted_drop_row = drop_row - rows_above_drop
-        
-        # Move the data
+        # For better UX, don't adjust drop position when dragging down
+        # This makes the behavior match what users expect from the indicator
         moved_data = []
+        
+        # Remove source rows from model (in reverse order to maintain indices)
         for row in reversed(source_rows):
             if row < len(self.album_data):
                 moved_data.insert(0, self.album_data.pop(row))
+                
+                # When removing rows above the drop position, we need to adjust
+                # the drop position to account for the removed rows
+                if row < drop_row:
+                    drop_row -= 1
         
         # Insert moved data at the drop position
         for i, item in enumerate(moved_data):
-            self.album_data.insert(adjusted_drop_row + i, item)
+            self.album_data.insert(drop_row + i, item)
         
         # Mark data as changed
         self.is_modified = True
@@ -223,10 +228,11 @@ class AlbumModel(QAbstractTableModel):
 
     def set_album_data(self, data):
         """Set the album data from a list of dictionaries."""
+        was_modified = self.is_modified  # Save current modified state
         self.beginResetModel()
         self.album_data = data
         self.endResetModel()
-        self.is_modified = False
+        self.is_modified = was_modified
     
     def get_album_data(self):
         """Get the album data as a list of dictionaries."""

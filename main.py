@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, 
                              QLineEdit, QPushButton, QListWidget, QTableWidgetItem, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle, QStyleOption)
 from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter
-from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint)
+from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint, QParallelAnimationGroup, QAbstractAnimation, QPropertyAnimation, QEasingCurve)
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -89,7 +89,7 @@ def read_file_lines(filepath, transform=None):
 
 class DragDropTableView(QTableView):
     """
-    Custom TableView with enhanced drag and drop visual cues.
+    Custom TableView with smooth, animated reordering during drag operations.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -97,29 +97,57 @@ class DragDropTableView(QTableView):
         self.horizontalHeader().setHighlightSections(False)
         self.verticalHeader().setHighlightSections(False)
         
-        # Track the drop position as a simple row index
-        self.drop_position = -1
+        # States for drag operation
         self.drag_active = False
+        self.dragged_rows = []
+        self.original_data = None
+        self.current_drop_row = -1
+        
+        # Animation properties
+        self.row_animations = {}  # Store animations by row index
+        self.animation_group = QParallelAnimationGroup(self)
+        self.animation_group.finished.connect(self.on_animation_finished)
+        self.animation_duration = 200  # Animation duration in milliseconds
+        
+        # Visual properties
+        self.setDragDropMode(QTableView.DragDropMode.InternalMove)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.setDropIndicatorShown(False)
+        
+        # Enable item tracking for smoother animations
+        self.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
     def dragEnterEvent(self, event):
-        self.drag_active = True
-        super().dragEnterEvent(event)
+        if event.mimeData().hasFormat("application/x-sushe-albumrow"):
+            # Store the current state of the model
+            self.drag_active = True
+            self.dragged_rows = sorted([index.row() for index in self.selectedIndexes() if index.column() == 0])
+            
+            # Make a deep copy of the current model data
+            self.original_data = self.model().get_album_data().copy()
+            
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
 
     def dragLeaveEvent(self, event):
-        self.drag_active = False
-        self.drop_position = -1
-        self.viewport().update()
+        if self.drag_active:
+            # Restore the original order with animation
+            self.animate_reordering(self.original_data)
+            self.drag_active = False
+            self.dragged_rows = []
+            self.original_data = None
+            self.current_drop_row = -1
+        
         super().dragLeaveEvent(event)
 
-    def dropMimeData(self, data, action, row, column, parent):
-        # Store the exact drop position to be used in the model
-        self.drop_position = row if row != -1 else self.model().rowCount()
-        return super().dropMimeData(data, action, row, column, parent)
-
     def dragMoveEvent(self, event):
-        y_position = int(event.position().y())
+        if not self.drag_active or not event.mimeData().hasFormat("application/x-sushe-albumrow"):
+            super().dragMoveEvent(event)
+            return
         
         # Calculate drop position
+        y_position = int(event.position().y())
         row = self.rowAt(y_position)
         
         if row == -1:
@@ -129,75 +157,144 @@ class DragDropTableView(QTableView):
                 last_row_rect = self.visualRect(self.model().index(self.model().rowCount()-1, 0))
                 
                 if y_position < first_row_rect.top():
-                    # Above first row
-                    self.drop_position = 0
+                    drop_row = 0
                 else:
-                    # Below last row
-                    self.drop_position = self.model().rowCount()
+                    drop_row = self.model().rowCount()
             else:
-                # Empty table
-                self.drop_position = 0
+                drop_row = 0
         else:
             # Get the rectangle for the current row
             row_rect = self.visualRect(self.model().index(row, 0))
             
             # If cursor is in the top half of the row, place above; otherwise, below
-            if y_position < (row_rect.top() + row_rect.height() / 3):
-                self.drop_position = row
+            if y_position < (row_rect.top() + row_rect.height() / 2):
+                drop_row = row
             else:
-                self.drop_position = row + 1
+                drop_row = row + 1
         
-        self.viewport().update()
+        # Only update the model if the drop position changed
+        if drop_row != self.current_drop_row:
+            self.current_drop_row = drop_row
+            
+            # Create a new arrangement of the data
+            current_data = self.original_data.copy()
+            
+            # Extract the dragged items
+            dragged_items = [current_data[i] for i in self.dragged_rows]
+            
+            # Remove dragged items from the list
+            for i in sorted(self.dragged_rows, reverse=True):
+                current_data.pop(i)
+            
+            # Insert them at the drop position
+            adjusted_drop_index = drop_row
+            for i in self.dragged_rows:
+                if i < drop_row:
+                    adjusted_drop_index -= 1
+            
+            # Insert the dragged items at the target position
+            for i, item in enumerate(dragged_items):
+                current_data.insert(max(0, adjusted_drop_index + i), item)
+            
+            # Animate the transition to the new arrangement
+            self.animate_reordering(current_data)
+            
         super().dragMoveEvent(event)
 
     def dropEvent(self, event):
-        result = super().dropEvent(event)
-        self.drag_active = False
-        self.drop_position = -1
-        self.viewport().update()
-        return result
+        if self.drag_active:
+            # The model already has the correct final arrangement
+            # Just need to mark it as modified now
+            self.model().is_modified = True
+            
+            # Reset drag state
+            self.drag_active = False
+            self.dragged_rows = []
+            self.original_data = None
+            self.current_drop_row = -1
+            
+            event.acceptProposedAction()
+        else:
+            super().dropEvent(event)
 
-    def paintEvent(self, event):
-        # First, let the parent class handle normal painting
-        super().paintEvent(event)
+    def animate_reordering(self, target_data):
+        """Create smooth animations for transitioning to the target arrangement."""
+        # Stop any existing animations
+        if self.animation_group.state() == QAbstractAnimation.State.Running:
+            self.animation_group.stop()
         
-        # Add our custom drop indicator if we're in a drag operation
-        if self.drag_active and self.drop_position >= 0:
-            painter = QPainter(self.viewport())
+        # Clear previous animations
+        while self.animation_group.animationCount() > 0:
+            self.animation_group.takeAnimation(0)
+        self.row_animations.clear()
+        
+        # Get current visual positions of all rows
+        current_positions = {}
+        for row in range(self.model().rowCount()):
+            rect = self.visualRect(self.model().index(row, 0))
+            current_positions[row] = rect.y()
+        
+        # Update the model with the new data arrangement
+        was_modified = self.model().is_modified
+        self.model().set_album_data(target_data)
+        self.model().is_modified = was_modified  # Don't mark as modified during animations
+        
+        # Create animations from current positions to new positions
+        for row in range(self.model().rowCount()):
+            # Skip rows that are being dragged
+            if self.drag_active and row in self.dragged_rows:
+                continue
+                
+            # Get the target position
+            target_rect = self.visualRect(self.model().index(row, 0))
             
-            # Calculate line position
-            if self.drop_position >= self.model().rowCount():
-                # After the last row
-                if self.model().rowCount() > 0:
-                    last_row_rect = self.visualRect(self.model().index(self.model().rowCount()-1, 0))
-                    line_y = last_row_rect.bottom()
-                else:
-                    # Empty table, draw at the top after header
-                    header_height = self.horizontalHeader().height()
-                    line_y = header_height
-            else:
-                # Before a specific row (which might be the first row)
-                row_rect = self.visualRect(self.model().index(self.drop_position, 0))
-                line_y = row_rect.top()
-            
-            # Draw a thick line at the insertion point
-            pen = QPen(QColor("#1DB954"), 3, Qt.PenStyle.SolidLine)
-            painter.setPen(pen)
-            
-            line_width = self.viewport().width()
-            painter.drawLine(0, line_y, line_width, line_y)
-            
-            # Draw an arrow on the left side
-            arrow_size = 8
-            arrow_points = [
-                QPoint(10, line_y - arrow_size),
-                QPoint(10 + arrow_size, line_y),
-                QPoint(10, line_y + arrow_size)
-            ]
-            
-            painter.setBrush(QColor("#1DB954"))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawPolygon(arrow_points)
+            # If we have the current position, animate from there
+            if row in current_positions:
+                # Create proxy object for animation
+                proxy = QObject(self)
+                proxy.setProperty("pos", current_positions[row])
+                proxy.row = row
+                
+                # Create the animation
+                animation = QPropertyAnimation(proxy, b"pos")
+                animation.setDuration(self.animation_duration)
+                animation.setStartValue(current_positions[row])
+                animation.setEndValue(target_rect.y())
+                animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+                
+                # Store the animation reference
+                self.row_animations[row] = animation
+                
+                # Value change handler to update row position
+                def create_update_callback(row_num):
+                    def update_position(value):
+                        # Calculate offset from current position
+                        current_rect = self.visualRect(self.model().index(row_num, 0))
+                        offset = value - current_rect.y()
+                        
+                        # Adjust the row height to create the animation effect
+                        if offset != 0:
+                            self.setRowHeight(row_num, self.rowHeight(row_num) + offset)
+                            self.update()
+                    return update_position
+                
+                # Connect the animation value changed signal
+                update_callback = create_update_callback(row)
+                animation.valueChanged.connect(update_callback)
+                
+                # Add to parallel animation group
+                self.animation_group.addAnimation(animation)
+        
+        # Start the animations
+        self.animation_group.start()
+
+    def on_animation_finished(self):
+        """Called when animations complete to reset row heights."""
+        for row in range(self.model().rowCount()):
+            self.setRowHeight(row, 100)  # Reset to standard row height
+        
+        # Clean up animation references
+        self.row_animations.clear()
 
 class DropIndicatorStyle(QProxyStyle):
     """
@@ -937,6 +1034,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setDropIndicatorShown(True)
         self.album_table.setDragDropMode(QTableView.DragDropMode.InternalMove)
         self.album_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        
+        # Apply the custom style for better drop indicators
+        self.album_table.setStyle(DropIndicatorStyle())
         
         # Enable editing with appropriate triggers
         self.album_table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | 
