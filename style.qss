@@ -91,90 +91,97 @@ QTabBar::tab:hover:!selected {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-/* Special styling for columns 4, 5, and 6 (Country, Genre1, Genre2) */
-QTableWidget::item:!selected {
-    padding-right: 20px;
-}
-
-/* Add visual indicator to selection cells even when inactive */
-QTableWidget::item:!selected[column="4"],
-QTableWidget::item:!selected[column="5"],
-QTableWidget::item:!selected[column="6"] {
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="%23AAAAAA" d="M7 10l5 5 5-5z"/></svg>');
-    background-repeat: no-repeat;
-    background-position: right center;
-    padding-right: 24px;
-    margin-right: 4px;
-}
-
-/* Table Style - Traditional with dropdown indicators */
-QTableWidget {
+/* Enhanced Table View Styling */
+QTableView {
     background-color: #121212;
-    alternate-background-color: #1A1A1A;
+    alternate-background-color: #1A1A1A;  /* Slightly lighter for alternate rows */
     border: none;
     gridline-color: #333333;
-    selection-background-color: rgba(29, 185, 84, 0.3);
-}
-
-QTableWidget::item {
-    border: none;
-    padding: 4px;
-}
-
-QTableWidget::item:selected {
-    background-color: #333333;
+    selection-background-color: rgba(29, 185, 84, 0.3);  /* Spotify green with transparency */
+    selection-color: #FFFFFF;
     color: #FFFFFF;
 }
 
-QTableWidget::item:hover:!selected {
+QTableView::item {
+    border: none;
+    padding: 4px;
+    padding-left: 6px;  /* Consistent left padding */
+    min-height: 40px;  /* Set a minimum height for rows */
+}
+
+QTableView::item:selected {
+    background-color: rgba(29, 185, 84, 0.2);  /* Spotify green with more transparency */
+    color: #FFFFFF;
+}
+
+QTableView::item:hover:!selected {
     background-color: #282828;
 }
 
-/* Header View */
+/* Enhanced header styling */
 QHeaderView {
     background-color: #121212;
     border: none;
 }
 
 QHeaderView::section {
-    background-color: #121212;
-    color: #B3B3B3;
+    background-color: #181818;  /* Slightly different than the table background */
+    color: #B3B3B3;  /* Light gray text */
     border: none;
     border-bottom: 1px solid #333333;
-    padding: 8px;
+    border-right: 1px solid #333333;
+    padding: 6px;
+    padding-left: 6px;  /* Match the item padding */
     font-size: 9.5pt;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    text-align: left;
 }
 
 QHeaderView::section:hover {
+    background-color: #222222;
     color: #FFFFFF;
 }
 
-/* List Widget */
-QListWidget {
-    background-color: #121212;
-    border: none;
-    border-radius: 8px;
-    padding: 8px;
-    outline: none;
-}
-
-QListWidget::item {
-    background-color: #181818;
-    border-radius: 6px;
-    padding: 12px;
-    margin: 4px 2px;
-    min-height: 24px;
-}
-
-QListWidget::item:selected {
-    background-color: rgba(51, 51, 51, 0.7);
-}
-
-QListWidget::item:hover:!selected {
+QHeaderView::section:checked {
     background-color: #282828;
+}
+
+QHeaderView::section:first {
+    border-top-left-radius: 5px;
+}
+
+QHeaderView::section:last {
+    border-top-right-radius: 5px;
+    border-right: none;
+}
+
+/* Fix for vertical header (row numbers) */
+QHeaderView::section:vertical {
+    padding: 4px;
+    background-color: #181818;
+    border-right: 1px solid #333333;
+    border-bottom: 1px solid #333333;
+    color: #888888;
+    font-size: 8pt;
+}
+
+/* Custom styling for editable cells */
+QTableView::item:hover:!selected[editable="true"] {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid #3A3A3A;
+    border-radius: 3px;
+}
+
+/* Style for columns with dropdown indicators */
+QTableView::item:!selected[column="4"],
+QTableView::item:!selected[column="5"],
+QTableView::item:!selected[column="6"] {
+    padding-right: 16px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="%23777777" d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right center;
 }
 
 /* Scrollbar */
@@ -294,12 +301,12 @@ QComboBox::down-arrow {
 }
 
 /* Special styling for table cells with combo boxes */
-QTableWidget QComboBox::drop-down {
+QTableView QComboBox::drop-down {
     background-color: #777777; /* Even brighter in tables */
     border-left: 1px solid #AAAAAA;
 }
 
-QTableWidget QComboBox::down-arrow {
+QTableView QComboBox::down-arrow {
     border-top: 3px solid #FFFFFF;
     border-right: 3px solid #FFFFFF;
 }
@@ -536,10 +543,124 @@ QRadioButton::indicator:checked {
     outline: none;
 }
 
-QTableWidget:focus {
+QTableView:focus {
     border: 1px solid #1DB954;
 }
 
 QListWidget:focus {
     border: 1px solid #1DB954;
+}
+
+/* List Widget */
+QListWidget {
+    background-color: #121212;
+    border: none;
+    border-radius: 8px;
+    padding: 8px;
+    outline: none;
+}
+
+QListWidget::item {
+    background-color: #181818;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 4px 2px;
+    min-height: 24px;
+}
+
+QListWidget::item:selected {
+    background-color: rgba(51, 51, 51, 0.7);
+}
+
+QListWidget::item:hover:!selected {
+    background-color: #282828;
+}
+
+/* Enhanced Context Menu (Right-click Menu) */
+QMenu {
+    background-color: #282828;
+    border: 1px solid #444444;
+    border-radius: 8px;
+    padding: 6px 0;
+}
+
+QMenu::item {
+    padding: 8px 32px 8px 20px;
+    margin: 2px 6px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: rgba(29, 185, 84, 0.1);
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #444444;
+    margin: 4px 10px;
+}
+
+QMenu::indicator {
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+}
+
+/* Search bar specific styling */
+QLineEdit#search_bar {
+    background-color: #333333;
+    border-radius: 16px;
+    padding: 6px 12px 6px 32px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="%23AAAAAA" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: 10px center;
+}
+
+QPushButton#search_prev_button, QPushButton#search_next_button {
+    background-color: #333333;
+    border-radius: 14px;
+    min-width: 80px;
+    padding: 4px 12px;
+}
+
+QPushButton#search_close_button {
+    background-color: #444444;
+    border-radius: 12px;
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0;
+    font-weight: bold;
+}
+
+QPushButton#search_close_button:hover {
+    background-color: #666666;
+}
+
+/* Notification styling */
+QLabel#notification_label {
+    background-color: rgba(45, 45, 48, 0.9);
+    color: white;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12pt;
+    border: 2px solid #1DB954;
+}
+
+/* Album cover styling fixes */
+QTableView::item[column="3"] {
+    padding: 4px;
+    background-image: none;
+}
+
+/* Album title (with links) styling */
+QLabel[isAlbumLink="true"] {
+    color: #1DB954;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+QLabel[isAlbumLink="true"]:hover {
+    text-decoration: underline;
 }

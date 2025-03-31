@@ -103,9 +103,9 @@ class ComboBoxDelegate(QStyledItemDelegate):
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         comboBox.setCompleter(completer)
 
-        # Apply the dark background style to the completer popup
-        completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
-        comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
+        # Apply consistent styling to dropdown and completer
+        completer.popup().setStyleSheet("background-color: #282828; color: white; padding: 4px;")
+        comboBox.setStyleSheet("background-color: #333333; color: white; padding: 4px;")
 
         return comboBox
 
@@ -113,54 +113,68 @@ class ComboBoxDelegate(QStyledItemDelegate):
         try:
             painter.save()
             
-            parent = self.parent()
-            if parent is None:
-                super().paint(painter, option, index)
-                return
-                
-            # Draw background
-            parent.style().drawPrimitive(
-                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
-            )
+            # Draw consistent background
+            option.rect = option.rect.adjusted(0, 0, 0, 0)  # Ensure no adjustment to rect size
             
-            # Draw text with space for indicator
+            # Check if cell is selected and apply proper styling
+            if option.state & QStyle.StateFlag.State_Selected:
+                painter.fillRect(option.rect, option.palette.highlight())
+            else:
+                # Use alternating colors if the table has them enabled
+                if index.row() % 2 == 0:
+                    painter.fillRect(option.rect, QColor("#121212"))
+                else:
+                    painter.fillRect(option.rect, QColor("#1A1A1A"))
+            
+            # Draw text with consistent spacing
             text = index.data(Qt.ItemDataRole.DisplayRole) or ""
-            text_rect = option.rect.adjusted(5, 0, -20, 0)
-            painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
-            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+            text_rect = option.rect.adjusted(6, 0, -24, 0)  # Left padding of 6px, right space for dropdown indicator
+            
+            # Set text color based on selection state
+            if option.state & QStyle.StateFlag.State_Selected:
+                painter.setPen(option.palette.highlightedText().color())
+            else:
+                painter.setPen(option.palette.text().color())
+                
+            # Ensure consistent vertical centering of text
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, text)
             
             # Draw dropdown indicator
             indicator_rect = QRect(
-                option.rect.right() - 16, 
+                option.rect.right() - 20, 
                 option.rect.top() + (option.rect.height() - 8) // 2,
-                8, 8
+                12, 8
             )
-            painter.setPen(Qt.GlobalColor.white)
+            
+            # Set indicator color
+            painter.setPen(Qt.GlobalColor.gray)
             painter.setBrush(QColor("#666666"))
             
-            # Draw a simple rectangle instead of a polygon
-            painter.drawRect(indicator_rect)
+            # Draw triangle indicator
+            points = [
+                QPoint(indicator_rect.left(), indicator_rect.top()),
+                QPoint(indicator_rect.left() + indicator_rect.width(), indicator_rect.top()),
+                QPoint(indicator_rect.left() + indicator_rect.width() // 2, indicator_rect.bottom())
+            ]
+            painter.drawPolygon(QPolygon(points))
             
         except Exception as e:
             logging.error(f"Error in ComboBoxDelegate.paint: {e}")
+            super().paint(painter, option, index)
         finally:
             painter.restore()
 
     def setEditorData(self, editor, index):
-        """
-        Sets the editor's current value based on the model's data.
-        """
+        """Sets the editor's current value based on the model's data."""
         value = index.model().data(index, Qt.ItemDataRole.EditRole)
-        if not value:
-            return
-            
-        idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
-        editor.setCurrentIndex(idx if idx >= 0 else -1)
+        if value:
+            idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
+            editor.setCurrentIndex(idx if idx >= 0 else -1)
+        else:
+            editor.setCurrentIndex(-1)  # No selection if no value
 
     def setModelData(self, editor, model, index):
-        """
-        Updates the model with the editor's current value.
-        """
+        """Updates the model with the editor's current value."""
         new_value = editor.currentText().strip()
         
         # Don't set empty values - keep the placeholder
@@ -173,11 +187,8 @@ class ComboBoxDelegate(QStyledItemDelegate):
             model.setData(index, new_value, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
-        """
-        Sets the editor's geometry.
-        """
+        """Sets the editor's geometry to match cell dimensions."""
         editor.setGeometry(option.rect)
-
 
 class SearchHighlightDelegate(QStyledItemDelegate):
     """
