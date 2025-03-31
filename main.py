@@ -1620,30 +1620,142 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to save Telegram settings. Details: {e}")
 
     def save_application_settings(self):
-        preferred_music_player = self.preferred_music_player_combo.currentText()
+        """
+        Save application settings with improved player change handling.
+        """
+        new_player = self.preferred_music_player_combo.currentText()
+        current_player = self.preferred_music_player
+        
+        # Only show confirm dialog if player is changing and we have albums
+        is_changing_player = (new_player != current_player)
+        has_albums = (self.album_model.rowCount() > 0)  # Use model.rowCount()
+        
+        if is_changing_player and has_albums:
+            reply = QMessageBox.question(
+                self, 'Changing Music Player',
+                f"You are changing your preferred music player from {current_player} to {new_player}. "
+                f"This will update all album links. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.No:
+                # Revert combo box selection
+                index = self.preferred_music_player_combo.findText(current_player)
+                if index >= 0:
+                    self.preferred_music_player_combo.setCurrentIndex(index)
+                return
+        
+        # Save the settings
         app_settings = {
-            "preferred_music_player": preferred_music_player
+            "preferred_music_player": new_player
         }
+        
         try:
             self.save_config_section('application', app_settings)
-            self.preferred_music_player = preferred_music_player
-            self.update_album_links()
+            
+            # Update the player preference
+            old_player = self.preferred_music_player
+            self.preferred_music_player = new_player
+            
+            # Update links if player has changed
+            if old_player != new_player and has_albums:
+                try:
+                    self.statusBar().showMessage(f"Updating album links for {new_player}...", 2000)
+                    self.update_album_links()
+                except Exception as e:
+                    logging.error(f"Error updating album links: {e}")
+                    QMessageBox.warning(self, "Warning", 
+                                    f"Settings saved, but there was an error updating album links: {e}")
+                    return
+                
             QMessageBox.information(self, "Success", "Application settings saved successfully.")
+            
         except Exception as e:
+            logging.error(f"Failed to save application settings: {e}")
             QMessageBox.critical(self, "Error", f"Failed to save application settings. Details: {e}")
 
     def update_album_links(self):
-        for row in range(self.album_table.rowCount()):
-            # Get the album label widget
-            album_label = self.album_table.cellWidget(row, 1)
-            if album_label and isinstance(album_label, QLabel):
-                album_name = album_label.album_name
-                album_id = album_label.album_id
-                artist_name = album_label.artist_name
-                # Get the new album URL based on the preferred music player
-                album_url = self.get_album_url(album_id, artist_name, album_name)
-                # Update the label's text
-                album_label.setText(f'<a href="{album_url}">{album_name}</a>')
+        """
+        Update album data without displaying hyperlinks.
+        Album opening is handled by the context menu instead.
+        """
+        # Use model for row count
+        total_rows = self.album_model.rowCount()
+        if total_rows == 0:
+            return
+            
+        # Create progress dialog for large updates
+        if total_rows > 50:
+            progress = QProgressDialog("Updating album data...", "Cancel", 0, total_rows, self)
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.show()
+        else:
+            progress = None
+        
+        update_count = 0
+        
+        # Loop through all rows and update album data
+        for row in range(total_rows):
+            # Update progress
+            if progress and row % 5 == 0:  # Update every 5 rows
+                progress.setValue(row)
+                if progress.wasCanceled():
+                    break
+            
+            try:
+                # Get the data from the model
+                artist_name = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), 
+                                                Qt.ItemDataRole.DisplayRole)
+                album_name = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), 
+                                                Qt.ItemDataRole.DisplayRole)
+                album_id = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), 
+                                            Qt.ItemDataRole.UserRole)
+                
+                # Get the appropriate URL based on preferred player (but don't display it)
+                if artist_name and album_name:
+                    album_url = self.get_album_url(album_id, artist_name, album_name)
+                    if album_url:
+                        # Find the index for the album column
+                        index = self.album_model.index(row, AlbumModel.ALBUM)
+                        
+                        # Get or create a widget for this cell - as plain text, not a hyperlink
+                        widget = self.album_table.indexWidget(index)
+                        
+                        if isinstance(widget, QLabel):
+                            # Update existing label to plain text
+                            widget.setText(album_name)  # No hyperlink formatting
+                            
+                            # Keep the metadata for use by context menu
+                            widget.album_name = album_name
+                            widget.album_id = album_id
+                            widget.album_url = album_url  # Store the URL for context menu use
+                            widget.artist_name = artist_name
+                            update_count += 1
+                        else:
+                            # Create a new label with plain text
+                            label = QLabel(album_name)  # No hyperlink formatting
+                            
+                            # Style to match other text in the table
+                            label.setStyleSheet("color: white; background: transparent;")
+                            label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                            
+                            # Store metadata for use by context menu
+                            label.album_name = album_name
+                            label.album_id = album_id
+                            label.album_url = album_url  # Store the URL for context menu use
+                            label.artist_name = artist_name
+                            
+                            # Use setIndexWidget to place the label in the cell
+                            self.album_table.setIndexWidget(index, label)
+                            update_count += 1
+            except Exception as e:
+                logging.error(f"Error updating album data at row {row}: {e}")
+        
+        # Close progress if shown
+        if progress:
+            progress.setValue(total_rows)
+        
+        logging.info(f"Updated {update_count} album entries")
 
     def get_access_token(self):
         """Get a valid Spotify access token"""
@@ -1945,7 +2057,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
                 # Create album data dictionary
                 album_data = {
-                    "artist": artist_name,  # Use artist_name instead of main_artist_name
+                    "artist": artist_name,
                     "album": album_name,
                     "album_id": album_id,
                     "release_date": release_date_formatted,
@@ -1963,7 +2075,25 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.album_model.add_album(album_data)
                 
                 # Set the row height for the new row
-                self.album_table.setRowHeight(self.album_model.rowCount() - 1, 100)
+                row_index = self.album_model.rowCount() - 1
+                self.album_table.setRowHeight(row_index, 100)
+                
+                # Get the album cell index
+                album_index = self.album_model.index(row_index, AlbumModel.ALBUM)
+                
+                # Create a label for the album title (as plain text, not a link)
+                album_label = QLabel(album_name)
+                album_label.setStyleSheet("color: white; background: transparent;")
+                album_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                
+                # Store metadata for context menu use
+                album_label.album_name = album_name
+                album_label.album_id = album_id
+                album_label.artist_name = artist_name
+                album_label.album_url = self.get_album_url(album_id, artist_name, album_name)
+                
+                # Set the label as the widget for the album cell
+                self.album_table.setIndexWidget(album_index, album_label)
                 
                 # Update the changed flags
                 self.dataChanged = self.album_model.is_modified
@@ -1990,37 +2120,131 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             QMessageBox.warning(self, "Unsupported URI", "The Spotify URI is not supported.")
 
     def get_album_url(self, album_id, artist_name, album_name):
+        """
+        Generate the appropriate URL for opening an album based on preferred music player.
+        Includes improved validation, fallback handling, and fixed Tidal URL format.
+        """
+        if not artist_name or not album_name:
+            logging.warning("Missing artist or album name for URL generation")
+            return None
+
         if self.preferred_music_player == 'Spotify':
             if album_id:
                 return f'spotify:album:{album_id}'
             else:
+                logging.info(f"No Spotify album ID available for '{album_name}', falling back to search")
                 search_term = urllib.parse.quote(f'{artist_name} {album_name}')
                 return f'spotify:search:{search_term}'
         elif self.preferred_music_player == 'Tidal':
-            # Combine album name and artist name
-            search_term = f'{album_name} {artist_name}'
-            # URL-encode the search term
-            encoded_search_term = urllib.parse.quote(search_term)
-            # Construct the Tidal search URL
-            return f'https://listen.tidal.com/search/albums?q={encoded_search_term}'
+            # Updated Tidal URL format that works more reliably
+            # Tidal search has changed - use a direct web search instead
+            combined_term = f"{artist_name} {album_name}"
+            encoded_term = urllib.parse.quote(combined_term)
+            # Use the main web search which is more stable than the specialized album search
+            return f'https://listen.tidal.com/search?q={encoded_term}'
         else:
-            return None
+            logging.warning(f"Unknown music player preference: {self.preferred_music_player}")
+            # Default to a generic web search as fallback
+            search_term = urllib.parse.quote(f'{artist_name} {album_name}')
+            return f'https://www.google.com/search?q={search_term}+album'
 
     def open_album_url(self, url):
+        """
+        Open an album URL with improved error handling and fallbacks.
+        Enhanced to better handle web URLs for both Spotify and Tidal.
+        """
+        if not url:
+            logging.error("Attempted to open empty URL")
+            QMessageBox.warning(self, "Error", "No valid URL available for this album")
+            return
+
         logging.info(f"Opening album URL: {url}")
+        
+        # Handle Spotify URLs
         if url.startswith('spotify:'):
+            if self.is_spotify_installed():
+                try:
+                    # Try to open with the Spotify app
+                    if sys.platform.startswith('win'):
+                        os.startfile(url)
+                    elif sys.platform == 'darwin':
+                        subprocess.call(['open', url])
+                    else:
+                        subprocess.call(['xdg-open', url])
+                    return
+                except Exception as e:
+                    logging.error(f"Failed to open Spotify URI: {e}")
+                    # Don't show error yet, try fallback
+            
+            # Fallback to web if app opening fails or Spotify isn't installed
             try:
-                if sys.platform.startswith('win'):
-                    os.startfile(url)
-                elif sys.platform == 'darwin':
-                    subprocess.call(['open', url])
-                else:
-                    subprocess.call(['xdg-open', url])
+                # Convert spotify: URI to HTTP URL
+                if url.startswith('spotify:album:'):
+                    album_id = url.replace('spotify:album:', '')
+                    web_url = f'https://open.spotify.com/album/{album_id}'
+                    QDesktopServices.openUrl(QUrl(web_url))
+                    return
+                elif url.startswith('spotify:search:'):
+                    search_term = url.replace('spotify:search:', '')
+                    web_url = f'https://open.spotify.com/search/{search_term}'
+                    QDesktopServices.openUrl(QUrl(web_url))
+                    return
             except Exception as e:
-                logging.error(f"Failed to open Spotify URI: {e}")
-                QMessageBox.warning(self, "Error", f"Failed to open Spotify URI: {e}")
+                logging.error(f"Failed to open Spotify web URL: {e}")
+                QMessageBox.warning(self, "Error", f"Failed to open album in Spotify: {e}")
         else:
-            QDesktopServices.openUrl(QUrl(url))
+            # Handle web URLs (Tidal, etc.)
+            try:
+                # For URLs that start with https://, use QDesktopServices
+                if url.startswith('http://') or url.startswith('https://'):
+                    logging.info(f"Opening web URL: {url}")
+                    success = QDesktopServices.openUrl(QUrl(url))
+                    
+                    if not success:
+                        # If openUrl returns False, use a fallback method
+                        logging.warning("QDesktopServices.openUrl failed, trying fallback")
+                        if sys.platform.startswith('win'):
+                            os.startfile(url)
+                        elif sys.platform == 'darwin':
+                            subprocess.call(['open', url])
+                        else:
+                            subprocess.call(['xdg-open', url])
+                else:
+                    # For other URL schemes, try platform-specific methods
+                    if sys.platform.startswith('win'):
+                        os.startfile(url)
+                    elif sys.platform == 'darwin':
+                        subprocess.call(['open', url])
+                    else:
+                        subprocess.call(['xdg-open', url])
+            except Exception as e:
+                logging.error(f"Failed to open URL: {e}")
+                QMessageBox.warning(self, "Error", f"Failed to open album URL: {e}")
+
+    def is_spotify_installed(self):
+        """
+        Check if Spotify is installed on the system.
+        """
+        try:
+            if sys.platform.startswith('win'):
+                # Check Windows Registry
+                import winreg
+                try:
+                    winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Spotify")
+                    return True
+                except WindowsError:
+                    return False
+            elif sys.platform == 'darwin':
+                # Check macOS Applications folder
+                return os.path.exists("/Applications/Spotify.app")
+            else:
+                # Basic check for Linux
+                return subprocess.call(['which', 'spotify'], 
+                                    stdout=subprocess.DEVNULL, 
+                                    stderr=subprocess.DEVNULL) == 0
+        except Exception as e:
+            logging.warning(f"Error checking if Spotify is installed: {e}")
+            return False  # Assume not installed if check fails
 
     def add_album_from_track(self, track_id: str):
         # Fetch the track's details to get the associated album ID
@@ -2041,7 +2265,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.update_window_title()
 
     def show_context_menu(self, position):
-        """Show context menu for album table."""
+        """Show context menu for album table with improved URL handling."""
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
         open_album_action = context_menu.addAction("Open Album")
@@ -2061,11 +2285,27 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             index = self.album_table.indexAt(position)
             if index.isValid():
                 row = index.row()
-                album_id = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.UserRole)
-                artist_name = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), Qt.ItemDataRole.DisplayRole)
-                album_name = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.DisplayRole)
-                album_url = self.get_album_url(album_id, artist_name, album_name)
-                self.open_album_url(album_url)
+                
+                # Try to get the URL from the widget first
+                album_widget = self.album_table.indexWidget(self.album_model.index(row, AlbumModel.ALBUM))
+                if album_widget and hasattr(album_widget, 'album_url'):
+                    album_url = album_widget.album_url
+                else:
+                    # Fall back to constructing the URL
+                    album_id = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), 
+                                                Qt.ItemDataRole.UserRole)
+                    artist_name = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), 
+                                                    Qt.ItemDataRole.DisplayRole)
+                    album_name = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), 
+                                                    Qt.ItemDataRole.DisplayRole)
+                    album_url = self.get_album_url(album_id, artist_name, album_name)
+                
+                if album_url:
+                    self.open_album_url(album_url)
+                else:
+                    logging.warning(f"No URL available for album at row {row}")
+                    QMessageBox.warning(self, "Cannot Open Album", 
+                                    "No URL is available for this album.")
 
     def remove_album(self, row):
         """Remove an album from the model."""
