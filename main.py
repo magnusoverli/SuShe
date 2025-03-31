@@ -102,20 +102,64 @@ class DragDropTableView(QTableView):
         self.dragged_rows = []
         self.original_data = None
         self.current_drop_row = -1
+        self.hover_row = -1
+        self.dropped_rows = []
         
         # Animation properties
         self.row_animations = {}  # Store animations by row index
         self.animation_group = QParallelAnimationGroup(self)
         self.animation_group.finished.connect(self.on_animation_finished)
-        self.animation_duration = 200  # Animation duration in milliseconds
+        self.animation_duration = 150  # Slightly faster animation (was 200ms)
         
         # Visual properties
-        self.setDragDropMode(QTableView.DragDropMode.InternalMove)
-        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
         self.setDropIndicatorShown(False)
+        self.setDragDropMode(QTableView.DragDropMode.InternalMove)
+        self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        
+        # Set a consistent row height
+        self.verticalHeader().setDefaultSectionSize(100)
+        
+        # Enable smooth scrolling
+        self.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
+        self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         
         # Enable item tracking for smoother animations
         self.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        
+        # Add visual feedback when hovering over rows
+        self.setMouseTracking(True)
+
+    # Override paintEvent to add custom hover highlighting
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        
+        # Add subtle hover effect for the entire row
+        if hasattr(self, 'hover_row') and self.hover_row >= 0:
+            # Only apply hover if not dragging and not on selected row
+            if not self.drag_active and not self.selectionModel().isRowSelected(self.hover_row, self.rootIndex()):
+                rect = self.visualRect(self.model().index(self.hover_row, 0))
+                rect.setWidth(self.viewport().width())
+                rect.setHeight(self.rowHeight(self.hover_row))
+                
+                painter = QPainter(self.viewport())
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(255, 255, 255, 10))  # Very subtle highlight
+                painter.drawRect(rect)
+                painter.end()
+
+    # Add event to track mouse position for hover effects
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        index = self.indexAt(event.position().toPoint())
+        if index.isValid():
+            self.hover_row = index.row()
+            self.viewport().update()
+        else:
+            self.hover_row = -1
+            self.viewport().update()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("application/x-sushe-albumrow"):
@@ -207,11 +251,18 @@ class DragDropTableView(QTableView):
             # Just need to mark it as modified now
             self.model().is_modified = True
             
+            # Store dropped rows for highlighting
+            self.dropped_rows = self.dragged_rows
+            
             # Reset drag state
             self.drag_active = False
             self.dragged_rows = []
             self.original_data = None
             self.current_drop_row = -1
+            
+            # Reset hover row
+            self.hover_row = -1
+            self.viewport().update()
             
             event.acceptProposedAction()
         else:
@@ -255,12 +306,12 @@ class DragDropTableView(QTableView):
                 proxy.setProperty("pos", current_positions[row])
                 proxy.row = row
                 
-                # Create the animation
+                # Create the animation with easing curve for more natural motion
                 animation = QPropertyAnimation(proxy, b"pos")
                 animation.setDuration(self.animation_duration)
                 animation.setStartValue(current_positions[row])
                 animation.setEndValue(target_rect.y())
-                animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+                animation.setEasingCurve(QEasingCurve.Type.OutQuad)  # Smoother easing
                 
                 # Store the animation reference
                 self.row_animations[row] = animation
@@ -295,6 +346,14 @@ class DragDropTableView(QTableView):
         
         # Clean up animation references
         self.row_animations.clear()
+        
+    def sizeHintForRow(self, row):
+        """Provide a consistent row height."""
+        return 100
+        
+    def sizeHintForColumn(self, column):
+        """Return the width that was set for this column."""
+        return self.columnWidth(column)
 
 class DropIndicatorStyle(QProxyStyle):
     """
@@ -1037,12 +1096,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def setup_album_list_tab(self):
         layout = QVBoxLayout()
 
-        # Create our custom TableView instead of a standard QTableView
+        # Create our custom TableView
         self.album_table = DragDropTableView()
         
         # Create and set the model
         self.album_model = AlbumModel(self)
         self.album_table.setModel(self.album_model)
+        
+        # Enable alternating row colors for better readability
+        self.album_table.setAlternatingRowColors(True)
         
         # Configure the view for drag and drop
         self.album_table.setDragEnabled(True)
@@ -1050,6 +1112,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_table.setDropIndicatorShown(True)
         self.album_table.setDragDropMode(QTableView.DragDropMode.InternalMove)
         self.album_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        
+        # Make sure horizontal scrolling is enabled if needed
+        self.album_table.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         
         # Apply the custom style for better drop indicators
         self.album_table.setStyle(DropIndicatorStyle())
@@ -1059,14 +1124,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                                         QTableView.EditTrigger.EditKeyPressed |
                                         QTableView.EditTrigger.AnyKeyPressed)
         
-        # IMPORTANT: Disable sorting
+        # Disable sorting initially
         self.album_table.setSortingEnabled(False)
         
-        # Make header non-clickable
-        self.album_table.horizontalHeader().setSectionsClickable(False)
+        # Configure header behavior
+        header = self.album_table.horizontalHeader()
+        header.setSectionsClickable(False)  # Make header non-clickable
+        header.setHighlightSections(False)  # Don't highlight sections
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
-        # Set column headers to fixed mode
-        self.album_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        # Configure vertical header (row numbers)
+        v_header = self.album_table.verticalHeader()
+        v_header.setDefaultSectionSize(100)  # Consistent row height
+        v_header.setVisible(False)  # Hide row numbers
         
         # Create separate delegate instances properly parented to the view
         country_delegate = ComboBoxDelegate(self.countries, self.album_table)
@@ -1110,21 +1180,40 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         logging.info(f"Album table sorted by column '{column_name}' in {order_str} order")
 
     def set_album_table_column_widths(self):
-        # Set the desired column widths
-        self.album_table.setColumnWidth(0, 130)  # "Artist" column
-        self.album_table.setColumnWidth(1, 200)  # "Album" column
-        self.album_table.setColumnWidth(2, 120)  # "Release Date" column
-        self.album_table.setColumnWidth(3, 120)  # "Cover Image" column
-        self.album_table.setColumnWidth(4, 170)  # "Country" column
-        self.album_table.setColumnWidth(5, 190)  # "Genre 1" column
-        self.album_table.setColumnWidth(6, 190)  # "Genre 2" column
-        self.album_table.setColumnWidth(7, 340)  # "Comments" column
-
-        # Set fixed column sizes
+        """Set and lock column widths with proper header alignment."""
+        # First, disable last section stretch to prevent automatic width adjustments
         header = self.album_table.horizontalHeader()
-        # Use model.columnCount() instead of view.columnCount()
+        header.setStretchLastSection(False)
+        
+        # Set viewport margin to 0 to prevent offsets
+        self.album_table.setViewportMargins(0, 0, 0, 0)
+        
+        # Define column widths
+        column_widths = [
+            (AlbumModel.ARTIST, 130),       # "Artist" column
+            (AlbumModel.ALBUM, 200),        # "Album" column
+            (AlbumModel.RELEASE_DATE, 120), # "Release Date" column
+            (AlbumModel.COVER_IMAGE, 120),  # "Cover Image" column
+            (AlbumModel.COUNTRY, 170),      # "Country" column
+            (AlbumModel.GENRE_1, 190),      # "Genre 1" column
+            (AlbumModel.GENRE_2, 190),      # "Genre 2" column
+            (AlbumModel.COMMENTS, 340),     # "Comments" column
+        ]
+        
+        # Apply column widths to both the header sections and table columns
+        for column, width in column_widths:
+            self.album_table.setColumnWidth(column, width)
+            header.resizeSection(column, width)  # This ensures header width = column width
+        
+        # Lock column sizes after setting them
         for i in range(self.album_model.columnCount()):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
+        
+        # We can add a bit of extra styling to the header for better appearance
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        
+        # Update the visual properties of the headers to ensure they're refreshed
+        header.update()
 
     def setup_settings_tab(self):
         layout = QVBoxLayout()
@@ -1244,18 +1333,37 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.spotify_logout_button.setEnabled(False)
 
     def login_to_spotify(self):
-        """Initiate Spotify login flow"""
-        # Default client ID embedded in app
-        default_client_id = "2241ba6e592a4d60aa18c81a8507f0b3"  # Replace with your client ID
+        """
+        Initiate Spotify login flow with improved error handling and state management.
+        """
+        logging.info("Starting Spotify login process")
         
-        # Clean up any existing auth resources first
-        if hasattr(self, 'spotify_auth'):
+        # Default client ID embedded in app
+        default_client_id = "2241ba6e592a4d60aa18c81a8507f0b3"
+        
+        # Ensure we have a SpotifyAuth instance
+        if not hasattr(self, 'spotify_auth'):
+            try:
+                from spotify_auth import SpotifyAuth
+                self.spotify_auth = SpotifyAuth(default_client_id)
+                
+                # Connect signals only once
+                self.spotify_auth.auth_complete.connect(self.on_spotify_auth_complete)
+                self.spotify_auth.auth_timeout.connect(self.on_spotify_auth_timeout)
+                
+                logging.info("Created new SpotifyAuth instance")
+            except Exception as e:
+                logging.error(f"Failed to create SpotifyAuth instance: {e}")
+                QMessageBox.critical(self, "Authentication Error", 
+                                f"Failed to initialize Spotify authentication: {e}")
+                return
+        
+        # Always clean up any existing auth resources first
+        try:
             self.spotify_auth.cleanup_auth_resources()
-        else:
-            from spotify_auth import SpotifyAuth
-            self.spotify_auth = SpotifyAuth(default_client_id)
-            self.spotify_auth.auth_complete.connect(self.on_spotify_auth_complete)
-            self.spotify_auth.auth_timeout.connect(self.on_spotify_auth_timeout)
+            logging.info("Cleaned up existing auth resources")
+        except Exception as e:
+            logging.warning(f"Error during cleanup of auth resources: {e}")
         
         # Show a progress dialog while waiting for auth
         self.auth_progress = QProgressDialog("Waiting for Spotify login...", "Cancel", 0, 0, self)
@@ -1263,71 +1371,179 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.auth_progress.setCancelButtonText("Cancel")
         self.auth_progress.canceled.connect(self.cancel_spotify_auth)
         self.auth_progress.setWindowModality(Qt.WindowModality.WindowModal)
-        self.auth_progress.show()
         
-        # Start auth flow
-        self.spotify_auth.start_auth_flow(timeout_seconds=120)
+        # Start auth flow with adequate timeout
+        try:
+            # Show progress dialog BEFORE starting auth flow
+            self.auth_progress.show()
+            
+            # Then start auth flow
+            self.spotify_auth.start_auth_flow(timeout_seconds=120)
+            logging.info("Authentication flow started")
+        except Exception as e:
+            logging.error(f"Failed to start authentication flow: {e}")
+            if hasattr(self, 'auth_progress') and self.auth_progress:
+                self.auth_progress.close()
+                self.auth_progress = None
+            
+            QMessageBox.critical(self, "Authentication Error", 
+                            f"Failed to start Spotify authentication: {e}")
 
     def on_spotify_auth_complete(self, success):
-        """Handle Spotify authentication completion"""
-        if hasattr(self, 'auth_progress') and self.auth_progress:
-            self.auth_progress.close()
+        """
+        Handle Spotify authentication completion with improved error handling.
         
-        if success and self.spotify_auth.auth_code:
+        Args:
+            success (bool): Whether authentication was successful
+        """
+        logging.info(f"Spotify auth complete signal received, success={success}")
+        
+        # First, handle the progress dialog
+        if hasattr(self, 'auth_progress') and self.auth_progress:
+            try:
+                self.auth_progress.close()
+            except Exception as e:
+                logging.warning(f"Error closing auth progress dialog: {e}")
+            finally:
+                self.auth_progress = None
+        
+        # Then process the authentication result
+        if success:
+            if not hasattr(self, 'spotify_auth') or not self.spotify_auth.auth_code:
+                logging.error("Auth success reported but no auth code available")
+                QMessageBox.warning(self, "Authentication Error", 
+                                "Authentication succeeded but no authorization code was received.")
+                return
+            
+            logging.info("Exchanging authorization code for tokens")
+            
             # Exchange code for tokens
-            if self.spotify_auth.exchange_code_for_tokens():
+            token_exchange_success = False
+            try:
+                token_exchange_success = self.spotify_auth.exchange_code_for_tokens()
+            except Exception as e:
+                logging.error(f"Exception during token exchange: {e}")
+                QMessageBox.warning(self, "Authentication Error", 
+                                f"Failed to exchange authorization code for tokens: {e}")
+                return
+            
+            if token_exchange_success:
                 # Save tokens to user data folder
                 tokens_path = self.get_user_data_path('spotify_tokens.json')
-                self.spotify_auth.save_tokens(tokens_path)
+                token_save_success = False
+                
+                try:
+                    token_save_success = self.spotify_auth.save_tokens(tokens_path)
+                except Exception as e:
+                    logging.error(f"Exception saving tokens: {e}")
+                    QMessageBox.warning(self, "Authentication Warning", 
+                                    f"Successfully authenticated but failed to save tokens: {e}")
+                
+                # Update UI and show success message
                 self.update_spotify_auth_status()
                 QMessageBox.information(self, "Success", "Successfully logged in to Spotify.")
+                
             else:
+                logging.error("Token exchange failed")
                 QMessageBox.warning(self, "Authentication Failed", 
                                 "Failed to obtain access tokens. Please try again.")
         else:
+            # Authentication failed
+            logging.warning("Authentication failed")
             QMessageBox.warning(self, "Authentication Failed", 
                             "Failed to authenticate with Spotify. Please try again.")
 
     def on_spotify_auth_timeout(self):
-        """Handle Spotify authentication timeout"""
-        if hasattr(self, 'auth_progress') and self.auth_progress:
-            self.auth_progress.close()
+        """
+        Handle Spotify authentication timeout with improved cleanup.
+        """
+        logging.info("Spotify authentication timeout signal received")
         
+        # Close the progress dialog
+        if hasattr(self, 'auth_progress') and self.auth_progress:
+            try:
+                self.auth_progress.close()
+            except Exception as e:
+                logging.warning(f"Error closing auth progress dialog: {e}")
+            finally:
+                self.auth_progress = None
+        
+        # Clean up auth resources
+        if hasattr(self, 'spotify_auth'):
+            try:
+                self.spotify_auth.cleanup_auth_resources()
+            except Exception as e:
+                logging.error(f"Error cleaning up auth resources after timeout: {e}")
+        
+        # Show timeout message
         QMessageBox.warning(self, "Authentication Timeout", 
                         "Spotify authentication timed out. Please try again.")
 
     def cancel_spotify_auth(self):
-        """Handle cancellation of Spotify authentication"""
+        """
+        Handle cancellation of Spotify authentication with improved cleanup.
+        """
+        logging.info("Spotify authentication cancelled by user")
+        
         if hasattr(self, 'spotify_auth'):
-            self.spotify_auth.cleanup_auth_resources()
+            try:
+                self.spotify_auth.cleanup_auth_resources()
+                logging.info("Auth resources cleaned up after cancellation")
+            except Exception as e:
+                logging.error(f"Error cleaning up after cancellation: {e}")
         
         if hasattr(self, 'auth_progress') and self.auth_progress:
             self.auth_progress.close()
             self.auth_progress = None
-            
-        logging.info("Spotify authentication cancelled by user")
 
     def logout_from_spotify(self):
-        """Log out from Spotify"""
-        if hasattr(self, 'spotify_auth'):
+        """
+        Log out from Spotify with improved cleanup and error handling.
+        """
+        logging.info("Starting Spotify logout process")
+        
+        if not hasattr(self, 'spotify_auth'):
+            logging.warning("Logout attempted but no SpotifyAuth instance exists")
+            QMessageBox.information(self, "Logged Out", "Not currently logged in to Spotify.")
+            return
+        
+        try:
             # Clean up any existing server resources first
             self.spotify_auth.cleanup_auth_resources()
             
-            # Clear tokens
+            # Clear tokens and state
             self.spotify_auth.access_token = None
             self.spotify_auth.refresh_token = None
+            self.spotify_auth.auth_code = None
+            self.spotify_auth.code_verifier = None
             
-            # Remove saved tokens
+            # Remove saved tokens file
             tokens_path = self.get_user_data_path('spotify_tokens.json')
             if os.path.exists(tokens_path):
                 try:
-                    os.remove(tokens_path)
-                    logging.info("Spotify token file removed successfully")
+                    # Create a backup before removing
+                    backup_path = f"{tokens_path}.bak"
+                    if os.path.exists(backup_path):
+                        os.remove(backup_path)
+                    os.rename(tokens_path, backup_path)
+                    logging.info(f"Created token backup at {backup_path}")
                 except Exception as e:
-                    logging.error(f"Failed to remove token file: {e}")
+                    logging.warning(f"Failed to create token backup: {e}")
+                    
+                    # Try direct removal if backup fails
+                    try:
+                        os.remove(tokens_path)
+                    except Exception as e2:
+                        logging.error(f"Failed to remove token file: {e2}")
             
+            # Update UI
             self.update_spotify_auth_status()
             QMessageBox.information(self, "Logged Out", "Successfully logged out from Spotify.")
+            
+        except Exception as e:
+            logging.error(f"Error during Spotify logout: {e}")
+            QMessageBox.warning(self, "Logout Issue", 
+                            f"There was an issue during logout: {e}\n\nYou may need to restart the application.")
 
     def load_spotify_tokens(self):
         """Load saved Spotify tokens on startup"""
