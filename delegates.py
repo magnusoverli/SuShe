@@ -225,8 +225,7 @@ class SearchHighlightDelegate(QStyledItemDelegate):
             widget = parent.indexWidget(index)
             if widget:
                 # If there's a widget, don't draw any text - let the widget handle it
-                painter.restore()
-                return
+                return  # No explicit restore here - the finally block will handle it
 
             # Get the cell text
             data = index.data(Qt.ItemDataRole.DisplayRole)
