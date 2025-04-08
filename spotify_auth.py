@@ -71,7 +71,35 @@ class SpotifyAuth(QObject):
             
             # If we get here, we couldn't find an available port
             logging.error("Could not find an available port for the callback server")
-        
+
+    def verify_port_available(self):
+        """Verify that we can bind to a port before attempting auth flow"""
+        try:
+            # First check if default port is available
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(1)
+            s.bind(('localhost', self.redirect_port))
+            s.close()
+            return True
+        except OSError:
+            # Default port unavailable, try to find another
+            for port in range(self.redirect_port + 1, self.redirect_port + 20):
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(1)
+                    s.bind(('localhost', port))
+                    s.close()
+                    self.redirect_port = port
+                    self.redirect_uri = f"http://localhost:{port}/callback"
+                    logging.info(f"Found available port {port}")
+                    return True
+                except OSError:
+                    continue
+            
+            # If we get here, we couldn't find an available port
+            logging.error("Could not find an available port for the callback server")
+            return False
+
     def generate_code_verifier(self):
         """Generate a random code verifier string for PKCE."""
         code_verifier = ''.join(random.choice(string.ascii_letters + string.digits + "-._~") for _ in range(64))
@@ -138,15 +166,28 @@ class SpotifyAuth(QObject):
         
         # Open the browser for authentication
         try:
+            import webbrowser
             webbrowser.open(auth_url)
             logging.info("Browser opened for authentication")
         except Exception as e:
             logging.error(f"Failed to open browser: {e}")
-            self.mutex.lock()
-            self.server_should_shutdown = True
-            self.mutex.unlock()
-            self.auth_complete.emit(False)
-            return
+            
+            # Since opening via webbrowser module failed, try platform-specific methods
+            try:
+                if sys.platform.startswith('win'):
+                    os.startfile(auth_url)
+                elif sys.platform == 'darwin':  # macOS
+                    subprocess.call(['open', auth_url])
+                else:  # Linux and other Unix-like
+                    subprocess.call(['xdg-open', auth_url])
+                logging.info("Opened browser using platform-specific method")
+            except Exception as e2:
+                logging.error(f"Failed to open browser using platform-specific method: {e2}")
+                self.mutex.lock()
+                self.server_should_shutdown = True
+                self.mutex.unlock()
+                self.auth_complete.emit(False)
+                return
         
         # Start a timeout monitor (as a non-Qt thread)
         timeout_thread = threading.Thread(

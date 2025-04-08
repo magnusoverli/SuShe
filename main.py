@@ -529,6 +529,35 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def load_config(self):
         config_path = self.get_user_data_path('config.json')
+        
+        # Define default configuration in code as fallback
+        default_config = {
+            "spotify": {
+                "default_client_id": "2241ba6e592a4d60aa18c81a8507f0b3"
+            },
+            "telegram": {
+                "bot_token": "",
+                "chat_id": "",
+                "message_thread_id": ""
+            },
+            "tidal": {
+                "client_id": "",
+                "client_secret": ""
+            },
+            "preferred_music_service": "Tidal",
+            "application": {
+                "preferred_music_player": "Spotify"
+            },
+            "github": {
+                "personal_access_token": "",
+                "owner": "magnusoverli",
+                "repo": "SuShe"
+            },
+            "webhook": {
+                "url": "https://hook.eu2.make.com/g7t3udg4ojpvlr48ipuwfq8q345m5bjn"
+            }
+        }
+        
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as file:
@@ -558,7 +587,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     self.webhook_url = config.get('webhook', {}).get('url', '')
                     if not self.webhook_url:
                         logging.warning("Webhook URL not found in config.json.")
-                    # **Update the UI field with the loaded webhook URL**
+                    # Update the UI field with the loaded webhook URL
                     if hasattr(self, 'webhook_url_input'):
                         self.webhook_url_input.setText(self.webhook_url)
                         logging.debug(f"Webhook URL input set to: {self.webhook_url}")
@@ -570,43 +599,97 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 logging.error(f"Error parsing config.json: {e}")
                 QMessageBox.critical(self, "Configuration Error", "Failed to parse config.json. Please check the file format.")
         else:
-            logging.warning("config.json not found. Telegram submission will not work.")
-            # **Create config.json from template**
-            template_path = resource_path('config_template.json')
+            logging.warning("config.json not found. Attempting to create default configuration.")
+            
+            # Try to create user data directory if it doesn't exist
             try:
-                with open(template_path, 'r') as template_file:
-                    default_config = json.load(template_file)
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            except Exception as e:
+                logging.error(f"Failed to create user data directory: {e}")
+            
+            # First try to create from template
+            template_created = False
+            template_path = resource_path('config_template.json')
+            
+            if os.path.exists(template_path):
+                try:
+                    with open(template_path, 'r') as template_file:
+                        loaded_config = json.load(template_file)
+                        # Merge with default_config to ensure all keys exist
+                        for key, value in default_config.items():
+                            if key not in loaded_config:
+                                loaded_config[key] = value
+                        default_config = loaded_config
+                    template_created = True
+                    logging.info(f"Loaded configuration template from {template_path}")
+                except Exception as e:
+                    logging.error(f"Failed to load template from {template_path}: {e}")
+            else:
+                logging.warning(f"Template file not found at {template_path}, using built-in defaults")
+                
+            # Now create the config file with either template or default values
+            try:
                 with open(config_path, 'w') as config_file:
                     json.dump(default_config, config_file, indent=4)
-                logging.info("Default config.json created from template.")
-
-                # **Show a single QMessageBox with options**
-                msg_box = QMessageBox(self)
-                msg_box.setIcon(QMessageBox.Icon.Warning)
-                msg_box.setWindowTitle("Configuration Missing")
-                msg_box.setText("No configuration file found. A default config.json has been created from the template.")
-                msg_box.setInformativeText("You can input the required values in the Settings tab or import an existing config.")
-
-                # **Add buttons to the dialog**
-                go_to_settings_button = msg_box.addButton("Go to Settings", QMessageBox.ButtonRole.AcceptRole)
-                import_config_button = msg_box.addButton("Import Config", QMessageBox.ButtonRole.ActionRole)
-                cancel_button = msg_box.addButton(QMessageBox.StandardButton.Cancel)
-
-                # **Execute the dialog and handle user response**
-                msg_box.exec()
-
-                if msg_box.clickedButton() == go_to_settings_button:
-                    # **Navigate to the Settings tab**
-                    self.tabs.setCurrentWidget(self.settings_tab)
-                elif msg_box.clickedButton() == import_config_button:
-                    # **Open the Import Config dialog**
-                    self.import_config()
+                logging.info(f"Default config.json created at {config_path}")
+                
+                # Set initial values from default config
+                self.bot_token = default_config.get('telegram', {}).get('bot_token', '')
+                self.chat_id = default_config.get('telegram', {}).get('chat_id', '')
+                self.message_thread_id = default_config.get('telegram', {}).get('message_thread_id', '')
+                self.webhook_url = default_config.get('webhook', {}).get('url', '')
+                self.github_token = default_config.get('github', {}).get('personal_access_token', '')
+                self.github_owner = default_config.get('github', {}).get('owner', '')
+                self.github_repo = default_config.get('github', {}).get('repo', '')
+                self.preferred_music_player = default_config.get('application', {}).get('preferred_music_player', 'Spotify')
+                
+                # Update UI elements
+                self.bot_token_input.setText(self.bot_token)
+                self.chat_id_input.setText(self.chat_id)
+                self.message_thread_id_input.setText(self.message_thread_id)
+                if hasattr(self, 'webhook_url_input'):
+                    self.webhook_url_input.setText(self.webhook_url)
+                
+                # Set preferred music player combo
+                index = self.preferred_music_player_combo.findText(self.preferred_music_player)
+                if index >= 0:
+                    self.preferred_music_player_combo.setCurrentIndex(index)
                 else:
-                    # **User chose to cancel or closed the dialog**
-                    pass
+                    self.preferred_music_player_combo.setCurrentIndex(0)
+                    
+                # Show a dialog to the user
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setWindowTitle("Configuration Created")
+                
+                if template_created:
+                    msg_box.setText("A new configuration file has been created from the template.")
+                else:
+                    msg_box.setText("A new configuration file has been created with default values.")
+                    
+                msg_box.setInformativeText("You can customize the settings in the Settings tab.")
+                
+                # Add buttons to the dialog
+                go_to_settings_button = msg_box.addButton("Go to Settings", QMessageBox.ButtonRole.AcceptRole)
+                ok_button = msg_box.addButton(QMessageBox.StandardButton.Ok)
+                
+                # Execute the dialog and handle user response
+                msg_box.exec()
+                
+                if msg_box.clickedButton() == go_to_settings_button:
+                    # Navigate to the Settings tab
+                    self.tabs.setCurrentWidget(self.settings_tab)
+                    
             except Exception as e:
                 logging.error(f"Failed to create default config.json: {e}")
-                QMessageBox.critical(self, "Configuration Error", f"Failed to create default config.json: {e}")
+                QMessageBox.critical(self, "Configuration Error", 
+                                f"Failed to create default config.json: {e}\n\nThe application will use temporary settings for this session.")
+                
+                # Set built-in defaults even if we couldn't save them
+                self.preferred_music_player = 'Spotify'
+                index = self.preferred_music_player_combo.findText(self.preferred_music_player)
+                if index >= 0:
+                    self.preferred_music_player_combo.setCurrentIndex(index)
 
     def open_send_genre_dialog(self):
         if not self.webhook_url:
@@ -1357,6 +1440,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 QMessageBox.critical(self, "Authentication Error", 
                                 f"Failed to initialize Spotify authentication: {e}")
                 return
+
+        # Check if authentication is already in progress
+        if hasattr(self, 'auth_progress') and self.auth_progress and self.auth_progress.isVisible():
+            logging.warning("Authentication already in progress")
+            QMessageBox.information(self, "Authentication In Progress", 
+                            "A Spotify authentication process is already in progress. Please complete that process or wait for it to timeout.")
+            return
         
         # Always clean up any existing auth resources first
         try:
@@ -1377,7 +1467,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             # Show progress dialog BEFORE starting auth flow
             self.auth_progress.show()
             
-            # Then start auth flow
+            # Now start the auth flow
             self.spotify_auth.start_auth_flow(timeout_seconds=120)
             logging.info("Authentication flow started")
         except Exception as e:
@@ -1758,13 +1848,24 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         logging.info(f"Updated {update_count} album entries")
 
     def get_access_token(self):
-        """Get a valid Spotify access token"""
-        # If we have a spotify_auth instance with a token, use it
+        """Get a valid Spotify access token with improved token validation and refresh"""
+        # If we have a spotify_auth instance with a token, check if it's valid
         if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
-            return self.spotify_auth.access_token
+            # Check if token appears to be expired based on length (invalid tokens are often shorter)
+            if len(self.spotify_auth.access_token) < 20:
+                logging.warning("Access token appears invalid, attempting refresh")
+                if self.spotify_auth.refresh_token:
+                    if self.spotify_auth.refresh_access_token():
+                        tokens_path = self.get_user_data_path('spotify_tokens.json')
+                        self.spotify_auth.save_tokens(tokens_path)
+                        return self.spotify_auth.access_token
+                # If refresh failed or no refresh token, we'll continue to try loading saved tokens
+            else:
+                # Token appears valid
+                return self.spotify_auth.access_token
         
         # Try loading saved tokens
-        if not hasattr(self, 'spotify_auth'):
+        if not hasattr(self, 'spotify_auth') or not self.spotify_auth.access_token:
             self.load_spotify_tokens()
             
         if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
@@ -1772,11 +1873,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Try refreshing the token if we have a refresh token
         if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:
-            # Use Worker to refresh token in a background thread
-            self.refresh_token_worker = Worker(self._refresh_token)
-            self.refresh_token_worker.finished.connect(self.on_token_refreshed)
-            self.refresh_token_worker.start()
-            return None  # Will need to retry after token is refreshed
+            logging.info("Attempting to refresh access token")
+            if self.spotify_auth.refresh_access_token():
+                tokens_path = self.get_user_data_path('spotify_tokens.json')
+                self.spotify_auth.save_tokens(tokens_path)
+                return self.spotify_auth.access_token
+            else:
+                logging.warning("Failed to refresh token, clearing invalid refresh token")
+                self.spotify_auth.refresh_token = None
         
         # If we're in the main thread, show dialog directly
         if QThread.currentThread() == QApplication.instance().thread():
