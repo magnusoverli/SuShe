@@ -2667,7 +2667,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             "Country": "60px",
             "Genre 1": "80px",
             "Genre 2": "80px",
-            "Rating": "20px",
             "Comments": "150px"
         }
 
@@ -2693,26 +2692,31 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         ]
 
         # Add table headers with defined widths, including "No."
-        headers = ["No.", "Artist", "Album", "Release Date", "Cover", "Country", "Genre 1", "Genre 2", "Rating", "Comments"]
+        headers = ["No.", "Artist", "Album", "Release Date", "Cover", "Country", "Genre 1", "Genre 2", "Comments"]
         for header in headers:
             width = column_widths.get(header, "10%")
             html_lines.append(f"<th style='width:{width};'>{header}</th>")
         html_lines.append("</tr>")
 
-        for row in range(self.album_table.rowCount()):
+        # Use the model's rowCount instead of the view's rowCount
+        row_count = self.album_model.rowCount()
+        
+        for row in range(row_count):
             no = row + 1  # Row number starting at 1
-            artist = self.album_table.item(row, 0).text() if self.album_table.item(row, 0) else ""
-            album = self.album_table.item(row, 1).text() if self.album_table.item(row, 1) else ""
-            release = self.album_table.item(row, 2).text() if self.album_table.item(row, 2) else ""
-            country = self.album_table.item(row, 4).text() if self.album_table.item(row, 4) else ""
-            genre1 = self.album_table.item(row, 5).text() if self.album_table.item(row, 5) else ""
-            genre2 = self.album_table.item(row, 6).text() if self.album_table.item(row, 6) else ""
-            rating = self.album_table.item(row, 7).text() if self.album_table.item(row, 7) else ""
-            comments = self.album_table.item(row, 8).text() if self.album_table.item(row, 8) else ""
+            
+            # Get data from the model instead of table items
+            artist = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), Qt.ItemDataRole.DisplayRole) or ""
+            album = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), Qt.ItemDataRole.DisplayRole) or ""
+            release = self.album_model.data(self.album_model.index(row, AlbumModel.RELEASE_DATE), Qt.ItemDataRole.DisplayRole) or ""
+            country = self.album_model.data(self.album_model.index(row, AlbumModel.COUNTRY), Qt.ItemDataRole.DisplayRole) or ""
+            genre1 = self.album_model.data(self.album_model.index(row, AlbumModel.GENRE_1), Qt.ItemDataRole.DisplayRole) or ""
+            genre2 = self.album_model.data(self.album_model.index(row, AlbumModel.GENRE_2), Qt.ItemDataRole.DisplayRole) or ""
+            comments = self.album_model.data(self.album_model.index(row, AlbumModel.COMMENTS), Qt.ItemDataRole.DisplayRole) or ""
 
-            image_widget = self.album_table.cellWidget(row, 3)
-            if image_widget and hasattr(image_widget, 'base64_image') and image_widget.base64_image:
-                img_tag = f'<img src="data:image/png;base64,{image_widget.base64_image}" width="100" />'
+            # Get image from the model
+            base64_image = self.album_model.data(self.album_model.index(row, AlbumModel.COVER_IMAGE), Qt.ItemDataRole.UserRole)
+            if base64_image:
+                img_tag = f'<img src="data:image/png;base64,{base64_image}" width="100" />'
             else:
                 img_tag = ""
 
@@ -2725,7 +2729,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             html_lines.append(f"<td>{country}</td>")
             html_lines.append(f"<td>{genre1}</td>")
             html_lines.append(f"<td>{genre2}</td>")
-            html_lines.append(f"<td>{rating}</td>")
             html_lines.append(f"<td>{comments}</td>")
             html_lines.append("</tr>")
 
@@ -2810,47 +2813,81 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.update_window_title()
 
     def add_manual_album_to_table(self, artist, album, release_date, cover_image_path, country, genre1, genre2, comments):
-        self.album_table.blockSignals(True)
-        # Convert the release date to DD-MM-YYYY format for display
-        release_date_display = self.format_date_dd_mm_yyyy(release_date)
-
-        row_position = self.album_table.rowCount()
-        self.album_table.insertRow(row_position)
-        self.album_table.setItem(row_position, 0, QTableWidgetItem(artist))
-
-        album_item = QTableWidgetItem(album)
-        album_item.setData(Qt.ItemDataRole.UserRole, '')  # No album_id for manually added albums
-        self.album_table.setItem(row_position, 1, album_item)
-
-        self.album_table.setItem(row_position, 2, QTableWidgetItem(release_date_display))
-
+        """Add a manually created album to the table."""
+        
+        # Convert the release date to the standard format for storage
+        release_date_display = release_date  # The date is already properly formatted
+        
+        # Process the cover image if provided
+        base64_image = None
+        image_format = "PNG"
         if cover_image_path:
             try:
                 with open(cover_image_path, 'rb') as img_file:
                     image_data = img_file.read()
+                    
                 # Determine the format based on the file extension
                 _, ext = os.path.splitext(cover_image_path)
                 format = ext.replace('.', '').upper()  # e.g., "PNG", "WEBP"
-                if format not in ["PNG", "WEBP", "JPEG"]:
+                if format not in ["PNG", "WEBP", "JPEG", "JPG"]:
                     format = "PNG"  # Default to PNG if unsupported
-                # Create ImageWidget and set it in the table asynchronously
-                image_widget = ImageWidget(parent=self.album_table)
-                self.album_table.setCellWidget(row_position, 3, image_widget)
-                image_widget.setImageAsync(image_data=image_data, size=(200, 200), format=format)
-                # No need to set base64_image here; ImageWidget handles it
-                self.album_table.setRowHeight(row_position, 100)
+                    
+                # Resize the image before encoding
+                image = Image.open(BytesIO(image_data))
+                image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
+                buffered = BytesIO()
+                image.save(buffered, format=format)
+                image_bytes = buffered.getvalue()
+                base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                image_format = format
             except Exception as e:
-                logging.error(f"Failed to add cover image: {e}")
-                self.album_table.setItem(row_position, 3, QTableWidgetItem("Image Load Failed"))
-
-        self.album_table.setItem(row_position, 4, QTableWidgetItem(country))
-        self.album_table.setItem(row_position, 5, QTableWidgetItem(genre1))
-        self.album_table.setItem(row_position, 6, QTableWidgetItem(genre2))
-        self.album_table.setItem(row_position, 7, QTableWidgetItem(comments))
-        self.album_table.blockSignals(False)  # Unblock signals
+                logging.error(f"Failed to process cover image: {e}")
+                base64_image = None
+        
+        # Create album data dictionary
+        album_data = {
+            "artist": artist,
+            "album": album,
+            "album_id": "",  # No album_id for manually added albums
+            "release_date": release_date_display,
+            "cover_image": base64_image,
+            "cover_image_format": image_format,
+            "country": country,
+            "genre_1": genre1,
+            "genre_2": genre2,
+            "comments": comments,
+            "rank": self.album_model.rowCount() + 1,
+            "points": 1
+        }
+        
+        # Add the album to the model
+        self.album_model.add_album(album_data)
+        
+        # Set the row height for the new row
+        row_index = self.album_model.rowCount() - 1
+        self.album_table.setRowHeight(row_index, 100)
+        
+        # Get the album cell index
+        album_index = self.album_model.index(row_index, AlbumModel.ALBUM)
+        
+        # Create a label for the album title
+        album_label = QLabel(album)
+        album_label.setStyleSheet("color: white; background: transparent;")
+        album_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        
+        # Store metadata for context menu use
+        album_label.album_name = album
+        album_label.album_id = ""
+        album_label.artist_name = artist
+        album_label.album_url = self.get_album_url("", artist, album)
+        
+        # Set the label as the widget for the album cell
+        self.album_table.setIndexWidget(album_index, album_label)
+        
+        # Update the changed flags
         self.dataChanged = True
         self.update_window_title()
-
+        
         logging.info(f"Manually added album '{album}' by '{artist}' with release date '{release_date_display}'")
 
 if __name__ == "__main__":
