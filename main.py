@@ -2,8 +2,8 @@
 
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QTableWidgetItem, QMessageBox,
-                             QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle, QStyleOption)
-from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter
+                             QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle)
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
 from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint, QParallelAnimationGroup, QAbstractAnimation, QPropertyAnimation, QEasingCurve)
 from datetime import datetime
 from pathlib import Path
@@ -161,6 +161,82 @@ class DragDropTableView(QTableView):
         else:
             self.hover_row = -1
             self.viewport().update()
+
+    def startDrag(self, supportedActions):
+        indexes = self.selectedIndexes()
+        if not indexes:
+            return
+        
+        # Get all unique rows
+        rows = set()
+        for index in indexes:
+            if index.isValid():
+                rows.add(index.row())
+        
+        # Store dragged rows
+        self.dragged_rows = sorted(list(rows))
+        self.drag_active = True
+        
+        # Create mime data
+        mime_data = self.model().mimeData(indexes)
+        
+        # Create a QDrag object
+        drag = QDrag(self)
+        drag.setMimeData(mime_data)
+        
+        # Determine the mouse position when the drag started
+        # This is usually stored in the event that triggered the drag, but we don't have access to it
+        # So we'll use the current cursor position relative to the viewport
+        mouse_pos = self.viewport().mapFromGlobal(QCursor.pos())
+        
+        # Calculate the visible portion of the table
+        visible_rect = self.viewport().rect()
+        
+        # Create a pixmap the size of the visible rows being dragged
+        first_row = self.dragged_rows[0]
+        row_height = self.rowHeight(first_row)
+        visible_width = visible_rect.width()
+        pixmap_height = len(self.dragged_rows) * row_height
+        
+        # Create the pixmap
+        pixmap = QPixmap(visible_width, pixmap_height)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        # Calculate the hotspot relative to the first row
+        first_row_rect = self.visualRect(self.model().index(first_row, 0))
+        hotspot_x = mouse_pos.x()
+        hotspot_y = mouse_pos.y() - first_row_rect.y()
+        
+        # Create a painter for the pixmap
+        painter = QPainter(pixmap)
+        painter.setOpacity(0.7)  # Semi-transparent
+        
+        # Render each selected row into the pixmap
+        for i, row in enumerate(self.dragged_rows):
+            # Get the visible part of the row
+            row_index = self.model().index(row, 0)
+            row_rect = self.visualRect(row_index)
+            row_rect.setLeft(visible_rect.left())
+            row_rect.setWidth(visible_width)
+            
+            # Grab just the visible part of the row
+            row_pixmap = self.viewport().grab(row_rect)
+            
+            # Draw onto our drag pixmap
+            target_y = i * row_height
+            painter.drawPixmap(0, target_y, row_pixmap)
+        
+        painter.end()
+        
+        # Set the drag pixmap with the calculated hotspot
+        drag.setPixmap(pixmap)
+        drag.setHotSpot(QPoint(hotspot_x, hotspot_y))
+        
+        # Execute the drag
+        result = drag.exec(supportedActions)
+        
+        # Reset drag state
+        self.drag_active = False
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("application/x-sushe-albumrow"):
