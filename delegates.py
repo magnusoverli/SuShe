@@ -221,16 +221,23 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                 QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
             )
 
+            # First check if this cell has a widget
+            widget = parent.indexWidget(index)
+            if widget:
+                # If there's a widget, don't draw any text - let the widget handle it
+                painter.restore()
+                return
+
             # Get the cell text
             data = index.data(Qt.ItemDataRole.DisplayRole)
             if not data:
-                # Handle QLabel cells (e.g., album names with hyperlinks)
+                # For backward compatibility, try the old method
                 widget = parent.cellWidget(index.row(), index.column())
                 if isinstance(widget, QLabel):
                     data = strip_html_tags(widget.text())
 
             if data:
-                data_lower = data.lower()
+                data_lower = str(data).lower()
                 if self.search_text and self.search_text in data_lower:
                     # Prepare to draw the text with highlighted matches
                     painter.setClipRect(option.rect)
@@ -248,11 +255,11 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                     while True:
                         idx = data_lower.find(self.search_text, start)
                         if idx == -1:
-                            segments.append((data[start:], False))
+                            segments.append((str(data)[start:], False))
                             break
                         if idx > start:
-                            segments.append((data[start:idx], False))
-                        segments.append((data[idx:idx+len(self.search_text)], True))
+                            segments.append((str(data)[start:idx], False))
+                        segments.append((str(data)[idx:idx+len(self.search_text)], True))
                         start = idx + len(self.search_text)
 
                     # Draw each segment
@@ -265,11 +272,14 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                         painter.drawText(QPointF(x, y + fm.ascent()), segment)
                         x += segment_width
                 else:
-                    # No matches, draw text normally
-                    super().paint(painter, option, index)
+                    # No matches, draw text directly without calling super()
+                    text_rect = option.rect.adjusted(5, 0, -5, 0)
+                    painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+                    painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, str(data))
             else:
-                # No data, draw normally
-                super().paint(painter, option, index)
+                # No data, but don't call super().paint() to avoid double drawing
+                # Just leave the background as is
+                pass
         except Exception as e:
             logging.error(f"Error in SearchHighlightDelegate.paint: {e}")
         finally:
