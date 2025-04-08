@@ -1,8 +1,10 @@
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QFileDialog,
-                             QLineEdit, QPushButton, QMessageBox, QTextEdit, QTextBrowser, QGroupBox)
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+                            QPushButton, QLineEdit, QTextEdit, QComboBox, 
+                            QGroupBox, QFormLayout, QFileDialog)
 import logging
-from datetime import datetime
+
 import os
 import requests
 
@@ -115,254 +117,345 @@ class HelpDialog(QDialog):
         layout.addWidget(self.text_browser)
         self.setLayout(layout)
 
-
 class ManualAddAlbumDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, countries=None, genres=None):
         super().__init__(parent)
-        self.cover_image_path = None
-        self.cover_pixmap = None
-        self.initUI()
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #181818;
-                border-radius: 8px;
-            }
-            QLabel {
-                color: #B3B3B3;
-                font-size: 13px;
-                margin-bottom: 4px;
-            }
-            QLabel#headerLabel {
-                color: white;
-                font-size: 18px;
-                font-weight: bold;
-                margin: 10px 0 20px 0;
-            }
-            QLabel#coverPreviewLabel {
-                background-color: #333333;
-                border-radius: 4px;
-                min-height: 180px;
-                min-width: 180px;
-                max-height: 180px;
-                max-width: 180px;
-                margin: 0 auto;
-            }
-            QLineEdit {
-                background-color: #333333;
-                border: none;
-                border-radius: 4px;
-                color: white;
-                padding: 10px;
-                margin-bottom: 15px;
-                font-size: 14px;
-            }
-            QPushButton {
-                background-color: #1DB954;
-                border: none;
-                border-radius: 24px;
-                color: #121212;
-                font-weight: bold;
-                font-size: 14px;
-                padding: 10px 20px;
-                min-height: 44px;
-            }
-            QPushButton:hover {
-                background-color: #1ED760;
-            }
-            QPushButton#browseButton {
-                background-color: #333333;
-                color: white;
-                border: 1px solid #555555;
-            }
-            QPushButton#browseButton:hover {
-                background-color: #444444;
-            }
-            QComboBox {
-                background-color: #333333;
-                border: none;
-                border-radius: 4px;
-                color: white;
-                padding: 10px;
-                margin-bottom: 15px;
-                min-height: 24px;
-                font-size: 14px;
-            }
-            QGroupBox {
-                border: 1px solid #333333;
-                border-radius: 8px;
-                margin-top: 16px;
-                padding: 12px;
-                color: white;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 5px;
-            }
-        """)
-
-    def initUI(self):
         self.setWindowTitle("Add Album Manually")
         self.setMinimumWidth(500)
-        self.setMinimumHeight(650)
         
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(25, 25, 25, 25)
+        # Initialize selected cover path
+        self.selected_cover_path = None
+        
+        # Load countries and genres from files if not provided
+        self.countries = countries if countries is not None else self.load_countries()
+        self.genres = genres if genres is not None else self.load_genres()
+        
+        # Set up the dialog layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
         
-        # Header
-        header_label = QLabel("Add New Album", self)
-        header_label.setObjectName("headerLabel")
-        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(header_label)
+        # Add title
+        title_label = QLabel("Add New Album")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: white;")
+        main_layout.addWidget(title_label)
         
-        # Image preview and upload section
-        image_group = QGroupBox("Album Cover")
-        image_layout = QVBoxLayout()
+        # Album Cover section
+        cover_group = QGroupBox("Album Cover")
+        cover_group.setStyleSheet("QGroupBox { border: 1px solid #333; border-radius: 5px; padding: 15px; }")
+        cover_layout = QVBoxLayout(cover_group)
         
-        self.cover_preview = QLabel(self)
-        self.cover_preview.setObjectName("coverPreviewLabel")
-        self.cover_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.cover_preview.setText("No image selected")
+        # Placeholder for album cover
+        self.cover_placeholder = QLabel("No image selected")
+        self.cover_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cover_placeholder.setFixedSize(180, 180)
+        self.cover_placeholder.setStyleSheet("background-color: #333; color: #888; border-radius: 3px;")
         
-        image_layout.addWidget(self.cover_preview, 0, Qt.AlignmentFlag.AlignCenter)
+        # Center the cover placeholder
+        cover_placeholder_layout = QHBoxLayout()
+        cover_placeholder_layout.addStretch()
+        cover_placeholder_layout.addWidget(self.cover_placeholder)
+        cover_placeholder_layout.addStretch()
+        cover_layout.addLayout(cover_placeholder_layout)
         
-        self.browseButton = QPushButton("Choose Cover Image", self)
-        self.browseButton.setObjectName("browseButton")
-        self.browseButton.clicked.connect(self.browse_cover_image)
-        image_layout.addWidget(self.browseButton)
+        # Add button to choose cover image
+        self.choose_cover_btn = QPushButton("Choose Cover Image")
+        self.choose_cover_btn.setFixedHeight(50)
+        self.choose_cover_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #333;
+                border-radius: 25px;
+                padding: 10px;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #444;
+            }
+        """)
+        cover_layout.addWidget(self.choose_cover_btn)
+        main_layout.addWidget(cover_group)
         
-        image_group.setLayout(image_layout)
-        main_layout.addWidget(image_group)
-        
-        # Album details section
+        # Album Details section
         details_group = QGroupBox("Album Details")
-        details_layout = QVBoxLayout()
+        details_group.setStyleSheet("QGroupBox { border: 1px solid #333; border-radius: 5px; padding: 15px; }")
+        details_layout = QFormLayout(details_group)
+        details_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        details_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        details_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        details_layout.setSpacing(10)
         
-        # Artist
-        artist_label = QLabel("Artist:", self)
-        details_layout.addWidget(artist_label)
-        self.artistEdit = QLineEdit(self)
-        self.artistEdit.setPlaceholderText("Enter artist name")
-        details_layout.addWidget(self.artistEdit)
+        # Artist input
+        self.artist_input = QLineEdit()
+        self.artist_input.setPlaceholderText("Enter artist name")
+        self.artist_input.setFixedHeight(40)
+        self.artist_input.setStyleSheet("background-color: #333; border-radius: 3px; padding: 5px; color: white;")
+        details_layout.addRow("Artist:", self.artist_input)
         
-        # Album
-        album_label = QLabel("Album:", self)
-        details_layout.addWidget(album_label)
-        self.albumEdit = QLineEdit(self)
-        self.albumEdit.setPlaceholderText("Enter album title")
-        details_layout.addWidget(self.albumEdit)
+        # Album input
+        self.album_input = QLineEdit()
+        self.album_input.setPlaceholderText("Enter album title")
+        self.album_input.setFixedHeight(40)
+        self.album_input.setStyleSheet("background-color: #333; border-radius: 3px; padding: 5px; color: white;")
+        details_layout.addRow("Album:", self.album_input)
         
-        # Release Date
-        release_date_label = QLabel("Release Date:", self)
-        details_layout.addWidget(release_date_label)
-        self.releaseDateEdit = QLineEdit(self)
-        self.releaseDateEdit.setPlaceholderText("DD-MM-YYYY")
-        details_layout.addWidget(self.releaseDateEdit)
+        # Release date input
+        self.release_date_input = QLineEdit()
+        self.release_date_input.setPlaceholderText("DD-MM-YYYY")
+        self.release_date_input.setFixedHeight(40)
+        self.release_date_input.setStyleSheet("background-color: #333; border-radius: 3px; padding: 5px; color: white;")
+        details_layout.addRow("Release Date:", self.release_date_input)
         
-        details_group.setLayout(details_layout)
         main_layout.addWidget(details_group)
         
-        # Metadata section
-        meta_group = QGroupBox("Additional Information")
-        meta_layout = QVBoxLayout()
+        # Additional Information section
+        additional_group = QGroupBox("Additional Information")
+        additional_group.setStyleSheet("QGroupBox { border: 1px solid #333; border-radius: 5px; padding: 15px; }")
+        additional_layout = QFormLayout(additional_group)
+        additional_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        additional_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        additional_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        additional_layout.setSpacing(10)
         
-        # Country
-        country_label = QLabel("Country:", self)
-        meta_layout.addWidget(country_label)
-        self.countryComboBox = QComboBox(self)
-        self.countryComboBox.addItems(self.parent().countries)
-        meta_layout.addWidget(self.countryComboBox)
+        # Country dropdown
+        self.country_combo = QComboBox()
+        self.country_combo.setFixedHeight(40)
+        self.country_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #333;
+                border-radius: 3px;
+                padding: 5px;
+                color: white;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: url(down_arrow.png);
+                width: 16px;
+                height: 16px;
+            }
+        """)
+        # Add countries from loaded list
+        self.country_combo.addItems(self.countries)
+        additional_layout.addRow("Country:", self.country_combo)
         
-        # Genre 1
-        genre1_label = QLabel("Primary Genre:", self)
-        meta_layout.addWidget(genre1_label)
-        self.genre1ComboBox = QComboBox(self)
-        self.genre1ComboBox.addItems(self.parent().genres)
-        meta_layout.addWidget(self.genre1ComboBox)
+        # Primary Genre dropdown
+        self.primary_genre_combo = QComboBox()
+        self.primary_genre_combo.setFixedHeight(40)
+        self.primary_genre_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #333;
+                border-radius: 3px;
+                padding: 5px;
+                color: white;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: url(down_arrow.png);
+                width: 16px;
+                height: 16px;
+            }
+        """)
+        # Add genres from loaded list
+        self.primary_genre_combo.addItems(self.genres)
+        additional_layout.addRow("Primary Genre:", self.primary_genre_combo)
         
-        # Genre 2
-        genre2_label = QLabel("Secondary Genre:", self)
-        meta_layout.addWidget(genre2_label)
-        self.genre2ComboBox = QComboBox(self)
-        self.genre2ComboBox.addItems(self.parent().genres)
-        meta_layout.addWidget(self.genre2ComboBox)
+        # Secondary Genre dropdown
+        self.secondary_genre_combo = QComboBox()
+        self.secondary_genre_combo.setFixedHeight(40)
+        self.secondary_genre_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #333;
+                border-radius: 3px;
+                padding: 5px;
+                color: white;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: url(down_arrow.png);
+                width: 16px;
+                height: 16px;
+            }
+        """)
+        self.secondary_genre_combo.addItems(self.genres)
+        additional_layout.addRow("Secondary Genre:", self.secondary_genre_combo)
         
-        # Comments
-        comments_label = QLabel("Comments:", self)
-        meta_layout.addWidget(comments_label)
-        self.commentsEdit = QLineEdit(self)
-        self.commentsEdit.setPlaceholderText("Add any additional comments (optional)")
-        meta_layout.addWidget(self.commentsEdit)
+        # Comments text area
+        self.comments_input = QTextEdit()
+        self.comments_input.setPlaceholderText("Add any additional comments (optional)")
+        self.comments_input.setMaximumHeight(80)
+        self.comments_input.setStyleSheet("background-color: #333; border-radius: 3px; padding: 5px; color: white;")
+        additional_layout.addRow("Comments:", self.comments_input)
         
-        meta_group.setLayout(meta_layout)
-        main_layout.addWidget(meta_group)
+        main_layout.addWidget(additional_group)
         
-        # Submit button
+        # Add Album button
+        self.add_album_btn = QPushButton("Add Album")
+        self.add_album_btn.setFixedHeight(50)
+        self.add_album_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00C853;
+                border-radius: 25px;
+                padding: 10px;
+                color: white;
+                font-weight: bold;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #00E676;
+            }
+        """)
+        
+        # Add some spacing and center the button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
-        self.submitButton = QPushButton("Add Album", self)
-        self.submitButton.clicked.connect(self.add_album)
-        button_layout.addWidget(self.submitButton)
+        button_layout.addWidget(self.add_album_btn)
+        button_layout.addStretch()
+        
         main_layout.addLayout(button_layout)
         
-        self.setLayout(main_layout)
-
-    def browse_cover_image(self):
+        # Connect signals
+        self.choose_cover_btn.clicked.connect(self.open_file_dialog)
+        self.add_album_btn.clicked.connect(self.on_add_album_clicked)
+    
+    def load_countries(self):
+        """Load countries from file"""
+        try:
+            countries = []
+            # First try to find countries file in the same directory
+            countries_file = os.path.join(os.path.dirname(__file__), "countries.txt")
+            
+            # If not found, try common locations
+            if not os.path.exists(countries_file):
+                possible_paths = [
+                    os.path.join(os.path.dirname(__file__), "data", "countries.txt"),
+                    os.path.join(os.path.dirname(__file__), "resources", "countries.txt"),
+                    "countries.txt"  # Try current working directory
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        countries_file = path
+                        break
+            
+            # Load countries if file exists
+            if os.path.exists(countries_file):
+                with open(countries_file, 'r', encoding='utf-8') as file:
+                    countries = [line.strip() for line in file if line.strip()]
+            
+            # Fallback if file not found or empty
+            if not countries:
+                logging.warning("Countries file not found or empty. Using default countries list.")
+                countries = ["United States", "United Kingdom", "Canada", "Japan", "Germany", "France"]
+                
+            return countries
+        except Exception as e:
+            logging.error(f"Error loading countries: {e}")
+            return ["United States", "United Kingdom", "Canada", "Japan", "Germany", "France"]
+    
+    def load_genres(self):
+        """Load genres from file"""
+        try:
+            genres = []
+            # First try to find genres file in the same directory
+            genres_file = os.path.join(os.path.dirname(__file__), "genres.txt")
+            
+            # If not found, try common locations
+            if not os.path.exists(genres_file):
+                possible_paths = [
+                    os.path.join(os.path.dirname(__file__), "data", "genres.txt"),
+                    os.path.join(os.path.dirname(__file__), "resources", "genres.txt"),
+                    "genres.txt"  # Try current working directory
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        genres_file = path
+                        break
+            
+            # Load genres if file exists
+            if os.path.exists(genres_file):
+                with open(genres_file, 'r', encoding='utf-8') as file:
+                    genres = [line.strip() for line in file if line.strip()]
+            
+            # Fallback if file not found or empty
+            if not genres:
+                logging.warning("Genres file not found or empty. Using default genres list.")
+                genres = ["Rock", "Pop", "Hip-Hop", "Jazz", "Classical", "Electronic", "R&B", "Country"]
+                
+            return genres
+        except Exception as e:
+            logging.error(f"Error loading genres: {e}")
+            return ["Rock", "Pop", "Hip-Hop", "Jazz", "Classical", "Electronic", "R&B", "Country"]
+    
+    def open_file_dialog(self):
+        """Open file dialog to select album cover"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Cover Image", "", "Image Files (*.png *.jpg *.jpeg *.bmp)"
+            self, 
+            "Select Album Cover", 
+            "", 
+            "Image Files (*.png *.jpg *.jpeg *.bmp)"
         )
+        
         if file_path:
-            self.cover_image_path = file_path
-            # Display preview
-            pixmap = QPixmap(file_path)
-            scaled_pixmap = pixmap.scaled(
-                170, 170, 
-                Qt.AspectRatioMode.KeepAspectRatio, 
+            # Handle the selected image
+            pixmap = QPixmap(file_path).scaled(
+                self.cover_placeholder.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
-            self.cover_preview.setPixmap(scaled_pixmap)
-            self.cover_preview.setText("")  # Clear text when image is set
-            self.browseButton.setText("Change Cover Image")
-
-    def add_album(self):
-        # Same implementation as before
-        artist = self.artistEdit.text().strip()
-        album = self.albumEdit.text().strip()
-        release_date = self.releaseDateEdit.text().strip()
-        country = self.countryComboBox.currentText()
-        genre1 = self.genre1ComboBox.currentText()
-        genre2 = self.genre2ComboBox.currentText()
-        comments = self.commentsEdit.text().strip()
-
-        if not artist or not album or not release_date:
-            QMessageBox.warning(self, "Input Error", "Please fill in all required fields (Artist, Album, Release Date).")
+            self.cover_placeholder.setPixmap(pixmap)
+            self.cover_placeholder.setText("")  # Clear the "No image selected" text
+            # Store the file path for later use
+            self.selected_cover_path = file_path
+    
+    def on_add_album_clicked(self):
+        """Validate form data and accept the dialog if valid"""
+        # Check required fields
+        if not self.artist_input.text().strip():
+            QMessageBox.warning(self, "Missing Information", "Please enter an artist name.")
+            self.artist_input.setFocus()
             return
-
-        # Validate and convert the release date
-        release_date_formatted = self.parse_date(release_date)
-        if not release_date_formatted:
-            QMessageBox.warning(self, "Input Error", "Invalid date format. Please use DDMMYY, DDMMYYYY, or DD-MM-YYYY.")
+            
+        if not self.album_input.text().strip():
+            QMessageBox.warning(self, "Missing Information", "Please enter an album title.")
+            self.album_input.setFocus()
             return
-
-        self.parent().add_manual_album_to_table(
-            artist, album, release_date_formatted, self.cover_image_path,
-            country, genre1, genre2, comments
-        )
+        
+        # Store the album data for later retrieval
+        self.album_data = self.get_album_data()
+        
+        # Log the addition
+        logging.info(f"Manually adding album: {self.album_data['artist']} - {self.album_data['album']}")
+        
+        # Close the dialog with accept status
         self.accept()
-
-    def parse_date(self, date_str):
-        """Parse the date string into YYYY-MM-DD format."""
-        formats = ["%d%m%y", "%d%m%Y", "%d-%m-%Y"]
-        for fmt in formats:
-            try:
-                date_obj = datetime.strptime(date_str, fmt)
-                return date_obj.strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-        return None
+            
+    def get_album_data(self):
+        """Return the collected data"""
+        data = {
+            "artist": self.artist_input.text().strip(),
+            "album": self.album_input.text().strip(),
+            "release_date": self.release_date_input.text().strip(),
+            "country": self.country_combo.currentText(),
+            "primary_genre": self.primary_genre_combo.currentText(),
+            "secondary_genre": self.secondary_genre_combo.currentText(),
+            "comments": self.comments_input.toPlainText().strip()
+        }
+        
+        # Add cover image path if selected
+        if self.selected_cover_path:
+            data["cover_path"] = self.selected_cover_path
+            
+        return data
 
 
 class UpdateDialog(QDialog):
