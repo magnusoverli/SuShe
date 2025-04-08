@@ -18,6 +18,7 @@ import json
 import sys
 import urllib.parse
 import subprocess
+import time
 
 from album_model import AlbumModel
 
@@ -1848,20 +1849,24 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         logging.info(f"Updated {update_count} album entries")
 
     def get_access_token(self):
-        """Get a valid Spotify access token with improved token validation and refresh"""
+        """Get a valid Spotify access token with proper expiration checking"""
         # If we have a spotify_auth instance with a token, check if it's valid
         if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
-            # Check if token appears to be expired based on length (invalid tokens are often shorter)
-            if len(self.spotify_auth.access_token) < 20:
-                logging.warning("Access token appears invalid, attempting refresh")
+            # Check if token is expired or about to expire (within 5 minutes)
+            current_time = int(time.time())
+            token_expiry = getattr(self.spotify_auth, 'token_expiry', 0)
+            time_to_expiry = token_expiry - current_time
+            
+            # Preemptively refresh token if it's about to expire
+            if time_to_expiry < 300:  # Less than 5 minutes to expiry
+                logging.info(f"Token expires in {time_to_expiry} seconds, refreshing")
                 if self.spotify_auth.refresh_token:
                     if self.spotify_auth.refresh_access_token():
                         tokens_path = self.get_user_data_path('spotify_tokens.json')
                         self.spotify_auth.save_tokens(tokens_path)
                         return self.spotify_auth.access_token
-                # If refresh failed or no refresh token, we'll continue to try loading saved tokens
             else:
-                # Token appears valid
+                # Token is still valid
                 return self.spotify_auth.access_token
         
         # Try loading saved tokens
@@ -1871,7 +1876,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
             return self.spotify_auth.access_token
         
-        # Try refreshing the token if we have a refresh token
+        # Try refreshing if we have a refresh token
         if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:
             logging.info("Attempting to refresh access token")
             if self.spotify_auth.refresh_access_token():
@@ -1882,11 +1887,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 logging.warning("Failed to refresh token, clearing invalid refresh token")
                 self.spotify_auth.refresh_token = None
         
-        # If we're in the main thread, show dialog directly
+        # If in main thread, prompt for auth
         if QThread.currentThread() == QApplication.instance().thread():
             return self.show_auth_required_and_get_token()
         else:
-            # We're in a worker thread, emit signal and return None
+            # In worker thread, emit signal and return None
             logging.info("Auth required from worker thread - emitting signal")
             self.auth_required_signal.emit()
             return None

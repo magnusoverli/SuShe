@@ -2,7 +2,7 @@ import base64
 import hashlib
 import random
 import string
-import webbrowser
+import time
 import urllib.parse
 import threading
 import requests
@@ -542,11 +542,13 @@ class SpotifyAuth(QObject):
                 tokens = response.json()
                 self.access_token = tokens.get("access_token")
                 self.refresh_token = tokens.get("refresh_token")
+                # Store expiration time (Spotify tokens expire in 3600 seconds/1 hour)
+                self.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
                 
                 # Log tokens (partially masked)
                 access_token_masked = f"{self.access_token[:5]}...{self.access_token[-5:]}" if self.access_token else None
                 refresh_token_masked = f"{self.refresh_token[:5]}...{self.refresh_token[-5:]}" if self.refresh_token else None
-                logging.info(f"Received access token: {access_token_masked}")
+                logging.info(f"Received access token: {access_token_masked}, expires at: {self.token_expiry}")
                 logging.info(f"Received refresh token: {refresh_token_masked}")
                 
                 return True
@@ -585,6 +587,8 @@ class SpotifyAuth(QObject):
             if response.status_code == 200:
                 tokens = response.json()
                 self.access_token = tokens.get("access_token")
+                # Set the new expiration time (Spotify tokens expire in 3600 seconds/1 hour)
+                self.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
                 
                 # Some APIs return a new refresh token, save it if provided
                 if "refresh_token" in tokens:
@@ -592,7 +596,7 @@ class SpotifyAuth(QObject):
                 
                 # Log refreshed token (partially masked)
                 access_token_masked = f"{self.access_token[:5]}...{self.access_token[-5:]}" if self.access_token else None
-                logging.info(f"Refreshed access token: {access_token_masked}")
+                logging.info(f"Refreshed access token: {access_token_masked}, expires at: {self.token_expiry}")
                 
                 return True
             else:
@@ -631,7 +635,8 @@ class SpotifyAuth(QObject):
         data = {
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
-            "created_at": int(time.time())  # Store creation time
+            "created_at": int(time.time()),
+            "expires_at": getattr(self, 'token_expiry', int(time.time()) + 3600)  # Default 1 hour from now
         }
         
         try:
@@ -671,16 +676,29 @@ class SpotifyAuth(QObject):
                 
             self.access_token = data.get("access_token")
             self.refresh_token = data.get("refresh_token")
+            self.token_expiry = data.get("expires_at", 0)
             
             # Check if tokens were loaded successfully
             if not self.access_token or not self.refresh_token:
                 logging.error("Invalid token file format")
                 return False
                 
-            # Check token age (optional)
-            created_at = data.get("created_at", 0)
-            token_age = int(time.time()) - created_at
-            logging.info(f"Loaded tokens from {path} (age: {token_age} seconds)")
+            # Check if token is already expired
+            current_time = int(time.time())
+            if current_time >= self.token_expiry:
+                logging.info("Loaded token is already expired, attempting refresh")
+                if self.refresh_access_token():
+                    # If refresh successful, save the updated tokens
+                    self.save_tokens(path)
+                    return True
+                else:
+                    logging.warning("Failed to refresh expired token")
+                    return False
+            
+            # Log token info (partially masked)
+            access_token_masked = f"{self.access_token[:5]}...{self.access_token[-5:]}" if self.access_token else None
+            time_to_expiry = self.token_expiry - current_time
+            logging.info(f"Loaded valid token: {access_token_masked} (expires in {time_to_expiry} seconds)")
             
             return True
         except json.JSONDecodeError:
