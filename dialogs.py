@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QFileDialog,
-                             QLineEdit, QPushButton, QMessageBox, QTextEdit, QTextBrowser)
+                             QLineEdit, QPushButton, QMessageBox, QTextEdit, QTextBrowser, QGroupBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 import logging
 from datetime import datetime
@@ -119,74 +119,216 @@ class HelpDialog(QDialog):
 class ManualAddAlbumDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.cover_image_path = None  # Store the selected image path internally
+        self.cover_image_path = None
+        self.cover_pixmap = None
         self.initUI()
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #181818;
+                border-radius: 8px;
+            }
+            QLabel {
+                color: #B3B3B3;
+                font-size: 13px;
+                margin-bottom: 4px;
+            }
+            QLabel#headerLabel {
+                color: white;
+                font-size: 18px;
+                font-weight: bold;
+                margin: 10px 0 20px 0;
+            }
+            QLabel#coverPreviewLabel {
+                background-color: #333333;
+                border-radius: 4px;
+                min-height: 180px;
+                min-width: 180px;
+                max-height: 180px;
+                max-width: 180px;
+                margin: 0 auto;
+            }
+            QLineEdit {
+                background-color: #333333;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                padding: 10px;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }
+            QPushButton {
+                background-color: #1DB954;
+                border: none;
+                border-radius: 24px;
+                color: #121212;
+                font-weight: bold;
+                font-size: 14px;
+                padding: 10px 20px;
+                min-height: 44px;
+            }
+            QPushButton:hover {
+                background-color: #1ED760;
+            }
+            QPushButton#browseButton {
+                background-color: #333333;
+                color: white;
+                border: 1px solid #555555;
+            }
+            QPushButton#browseButton:hover {
+                background-color: #444444;
+            }
+            QComboBox {
+                background-color: #333333;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                padding: 10px;
+                margin-bottom: 15px;
+                min-height: 24px;
+                font-size: 14px;
+            }
+            QGroupBox {
+                border: 1px solid #333333;
+                border-radius: 8px;
+                margin-top: 16px;
+                padding: 12px;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 5px;
+            }
+        """)
 
     def initUI(self):
         self.setWindowTitle("Add Album Manually")
-
-        layout = QVBoxLayout()
-
-        self.artistEdit = QLineEdit(self)
-        self.artistEdit.setPlaceholderText("Artist")
-        layout.addWidget(self.artistEdit)
-
-        self.albumEdit = QLineEdit(self)
-        self.albumEdit.setPlaceholderText("Album")
-        layout.addWidget(self.albumEdit)
-
-        self.releaseDateEdit = QLineEdit(self)
-        self.releaseDateEdit.setPlaceholderText("Release Date (DD-MM-YYYY)")
-        layout.addWidget(self.releaseDateEdit)
-
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(650)
+        
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(25, 25, 25, 25)
+        main_layout.setSpacing(15)
+        
+        # Header
+        header_label = QLabel("Add New Album", self)
+        header_label.setObjectName("headerLabel")
+        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(header_label)
+        
+        # Image preview and upload section
+        image_group = QGroupBox("Album Cover")
+        image_layout = QVBoxLayout()
+        
+        self.cover_preview = QLabel(self)
+        self.cover_preview.setObjectName("coverPreviewLabel")
+        self.cover_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cover_preview.setText("No image selected")
+        
+        image_layout.addWidget(self.cover_preview, 0, Qt.AlignmentFlag.AlignCenter)
+        
         self.browseButton = QPushButton("Choose Cover Image", self)
+        self.browseButton.setObjectName("browseButton")
         self.browseButton.clicked.connect(self.browse_cover_image)
-        layout.addWidget(self.browseButton)
-
-        # Country Drop-down
-        countryLayout = QHBoxLayout()
-        countryLabel = QLabel("Country:", self)
-        countryLayout.addWidget(countryLabel)
+        image_layout.addWidget(self.browseButton)
+        
+        image_group.setLayout(image_layout)
+        main_layout.addWidget(image_group)
+        
+        # Album details section
+        details_group = QGroupBox("Album Details")
+        details_layout = QVBoxLayout()
+        
+        # Artist
+        artist_label = QLabel("Artist:", self)
+        details_layout.addWidget(artist_label)
+        self.artistEdit = QLineEdit(self)
+        self.artistEdit.setPlaceholderText("Enter artist name")
+        details_layout.addWidget(self.artistEdit)
+        
+        # Album
+        album_label = QLabel("Album:", self)
+        details_layout.addWidget(album_label)
+        self.albumEdit = QLineEdit(self)
+        self.albumEdit.setPlaceholderText("Enter album title")
+        details_layout.addWidget(self.albumEdit)
+        
+        # Release Date
+        release_date_label = QLabel("Release Date:", self)
+        details_layout.addWidget(release_date_label)
+        self.releaseDateEdit = QLineEdit(self)
+        self.releaseDateEdit.setPlaceholderText("DD-MM-YYYY")
+        details_layout.addWidget(self.releaseDateEdit)
+        
+        details_group.setLayout(details_layout)
+        main_layout.addWidget(details_group)
+        
+        # Metadata section
+        meta_group = QGroupBox("Additional Information")
+        meta_layout = QVBoxLayout()
+        
+        # Country
+        country_label = QLabel("Country:", self)
+        meta_layout.addWidget(country_label)
         self.countryComboBox = QComboBox(self)
         self.countryComboBox.addItems(self.parent().countries)
-        countryLayout.addWidget(self.countryComboBox)
-        layout.addLayout(countryLayout)
-
-        # Genre 1 Drop-down
-        genre1Layout = QHBoxLayout()
-        genre1Label = QLabel("Genre 1:", self)
-        genre1Layout.addWidget(genre1Label)
+        meta_layout.addWidget(self.countryComboBox)
+        
+        # Genre 1
+        genre1_label = QLabel("Primary Genre:", self)
+        meta_layout.addWidget(genre1_label)
         self.genre1ComboBox = QComboBox(self)
         self.genre1ComboBox.addItems(self.parent().genres)
-        genre1Layout.addWidget(self.genre1ComboBox)
-        layout.addLayout(genre1Layout)
-
-        # Genre 2 Drop-down
-        genre2Layout = QHBoxLayout()
-        genre2Label = QLabel("Genre 2:", self)
-        genre2Layout.addWidget(genre2Label)
+        meta_layout.addWidget(self.genre1ComboBox)
+        
+        # Genre 2
+        genre2_label = QLabel("Secondary Genre:", self)
+        meta_layout.addWidget(genre2_label)
         self.genre2ComboBox = QComboBox(self)
         self.genre2ComboBox.addItems(self.parent().genres)
-        genre2Layout.addWidget(self.genre2ComboBox)
-        layout.addLayout(genre2Layout)
-
+        meta_layout.addWidget(self.genre2ComboBox)
+        
+        # Comments
+        comments_label = QLabel("Comments:", self)
+        meta_layout.addWidget(comments_label)
         self.commentsEdit = QLineEdit(self)
-        self.commentsEdit.setPlaceholderText("Comments")
-        layout.addWidget(self.commentsEdit)
-
+        self.commentsEdit.setPlaceholderText("Add any additional comments (optional)")
+        meta_layout.addWidget(self.commentsEdit)
+        
+        meta_group.setLayout(meta_layout)
+        main_layout.addWidget(meta_group)
+        
+        # Submit button
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
         self.submitButton = QPushButton("Add Album", self)
         self.submitButton.clicked.connect(self.add_album)
-        layout.addWidget(self.submitButton)
-
-        self.setLayout(layout)
+        button_layout.addWidget(self.submitButton)
+        main_layout.addLayout(button_layout)
+        
+        self.setLayout(main_layout)
 
     def browse_cover_image(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Cover Image", "", "Image Files (*.png *.jpg *.bmp)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Cover Image", "", "Image Files (*.png *.jpg *.jpeg *.bmp)"
+        )
         if file_path:
-            self.cover_image_path = file_path  # Store the selected image path internally
-            self.browseButton.setText("Image Selected")  # Indicate that an image has been selected
+            self.cover_image_path = file_path
+            # Display preview
+            pixmap = QPixmap(file_path)
+            scaled_pixmap = pixmap.scaled(
+                170, 170, 
+                Qt.AspectRatioMode.KeepAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.cover_preview.setPixmap(scaled_pixmap)
+            self.cover_preview.setText("")  # Clear text when image is set
+            self.browseButton.setText("Change Cover Image")
 
     def add_album(self):
+        # Same implementation as before
         artist = self.artistEdit.text().strip()
         album = self.albumEdit.text().strip()
         release_date = self.releaseDateEdit.text().strip()
@@ -210,7 +352,6 @@ class ManualAddAlbumDialog(QDialog):
             country, genre1, genre2, comments
         )
         self.accept()
-
 
     def parse_date(self, date_str):
         """Parse the date string into YYYY-MM-DD format."""
