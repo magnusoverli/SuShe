@@ -1180,6 +1180,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
         return os.path.join(app_data_dir, filename)
 
+    def on_layout_changed(self):
+            """Called when the album model layout changes due to operations like drag-and-drop."""
+            # Update main window's dataChanged flag from the model
+            self.dataChanged = self.album_model.is_modified
+            self.update_window_title()
+            logging.info("Album layout changed (reordering). Change state: %s", self.dataChanged)
+
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():  # Check if the drag event contains URLs
             event.acceptProposedAction()  # Accept the drag event
@@ -1253,83 +1260,84 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.search_tab.setLayout(layout)
 
     def setup_album_list_tab(self):
-        layout = QVBoxLayout()
+            layout = QVBoxLayout()
 
-        # Create our custom TableView
-        self.album_table = DragDropTableView()
-        
-        # Create and set the model
-        self.album_model = AlbumModel(self)
-        self.album_table.setModel(self.album_model)
-        
-        # Enable alternating row colors for better readability
-        self.album_table.setAlternatingRowColors(True)
-        
-        # Configure the view for drag and drop
-        self.album_table.setDragEnabled(True)
-        self.album_table.setAcceptDrops(True)
-        self.album_table.setDropIndicatorShown(True)
-        self.album_table.setDragDropMode(QTableView.DragDropMode.InternalMove)
-        self.album_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        
-        # Make sure horizontal scrolling is enabled if needed
-        self.album_table.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
-        
-        # Apply the custom style for better drop indicators
-        self.album_table.setStyle(DropIndicatorStyle())
-        
-        # Enable editing with appropriate triggers
-        self.album_table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | 
-                                        QTableView.EditTrigger.EditKeyPressed |
-                                        QTableView.EditTrigger.AnyKeyPressed)
-        
-        # Disable sorting initially
-        self.album_table.setSortingEnabled(False)
-        
-        # Configure header behavior
-        header = self.album_table.horizontalHeader()
-        header.setSectionsClickable(False)  # Make header non-clickable
-        header.setHighlightSections(False)  # Don't highlight sections
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        
-        # Configure vertical header (row numbers)
-        v_header = self.album_table.verticalHeader()
-        v_header.setDefaultSectionSize(100)  # Consistent row height
-        v_header.setVisible(False)  # Hide row numbers
-        
-        # Create separate delegate instances properly parented to the view
-        country_delegate = ComboBoxDelegate(self.countries, self.album_table)
-        self.genre_delegate_1 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
-        self.genre_delegate_2 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
-        self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
-        cover_delegate = CoverImageDelegate(self.album_table)
+            # Create our custom TableView
+            self.album_table = DragDropTableView()
+            
+            # Create and set the model
+            self.album_model = AlbumModel(self)
+            self.album_table.setModel(self.album_model)
+            
+            # Enable alternating row colors for better readability
+            self.album_table.setAlternatingRowColors(True)
+            
+            # Configure the view for drag and drop
+            self.album_table.setDragEnabled(True)
+            self.album_table.setAcceptDrops(True)
+            self.album_table.setDropIndicatorShown(True)
+            self.album_table.setDragDropMode(QTableView.DragDropMode.InternalMove)
+            self.album_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+            
+            # Make sure horizontal scrolling is enabled if needed
+            self.album_table.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
+            
+            # Apply the custom style for better drop indicators
+            self.album_table.setStyle(DropIndicatorStyle())
+            
+            # Enable editing with appropriate triggers
+            self.album_table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | 
+                                            QTableView.EditTrigger.EditKeyPressed |
+                                            QTableView.EditTrigger.AnyKeyPressed)
+            
+            # Disable sorting initially
+            self.album_table.setSortingEnabled(False)
+            
+            # Configure header behavior
+            header = self.album_table.horizontalHeader()
+            header.setSectionsClickable(False)  # Make header non-clickable
+            header.setHighlightSections(False)  # Don't highlight sections
+            header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            
+            # Configure vertical header (row numbers)
+            v_header = self.album_table.verticalHeader()
+            v_header.setDefaultSectionSize(100)  # Consistent row height
+            v_header.setVisible(False)  # Hide row numbers
+            
+            # Create separate delegate instances properly parented to the view
+            country_delegate = ComboBoxDelegate(self.countries, self.album_table)
+            self.genre_delegate_1 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+            self.genre_delegate_2 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+            self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+            cover_delegate = CoverImageDelegate(self.album_table)
 
-        # Assign delegates to respective columns
-        self.album_table.setItemDelegateForColumn(AlbumModel.COUNTRY, country_delegate)
-        self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_1, self.genre_delegate_1)
-        self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_2, self.genre_delegate_2)
-        self.album_table.setItemDelegateForColumn(AlbumModel.COVER_IMAGE, cover_delegate)
+            # Assign delegates to respective columns
+            self.album_table.setItemDelegateForColumn(AlbumModel.COUNTRY, country_delegate)
+            self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_1, self.genre_delegate_1)
+            self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_2, self.genre_delegate_2)
+            self.album_table.setItemDelegateForColumn(AlbumModel.COVER_IMAGE, cover_delegate)
 
-        # Set the search highlight delegate for specified columns
-        for column in [AlbumModel.ARTIST, AlbumModel.ALBUM, AlbumModel.COMMENTS]:
-            self.album_table.setItemDelegateForColumn(column, self.search_delegate)
+            # Set the search highlight delegate for specified columns
+            for column in [AlbumModel.ARTIST, AlbumModel.ALBUM, AlbumModel.COMMENTS]:
+                self.album_table.setItemDelegateForColumn(column, self.search_delegate)
 
-        # Connect signals
-        self.album_table.clicked.connect(self.handleCellClick)
-        self.album_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.album_table.customContextMenuRequested.connect(self.show_context_menu)
+            # Connect signals
+            self.album_table.clicked.connect(self.handleCellClick)
+            self.album_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self.album_table.customContextMenuRequested.connect(self.show_context_menu)
 
-        # Connect model change signals to update UI state
-        self.album_model.dataChanged.connect(self.on_album_data_changed)
-        
-        # Add to layout
-        layout.addWidget(self.album_table)
+            # Connect model change signals to update UI state
+            self.album_model.dataChanged.connect(self.on_album_data_changed)
+            self.album_model.layoutChanged.connect(self.on_layout_changed)  # Add this connection
+            
+            # Add to layout
+            layout.addWidget(self.album_table)
 
-        # Set the column widths
-        self.set_album_table_column_widths()
+            # Set the column widths
+            self.set_album_table_column_widths()
 
-        # Set the layout for the album list tab
-        self.album_list_tab.setLayout(layout)
+            # Set the layout for the album list tab
+            self.album_list_tab.setLayout(layout)
 
     def on_sort_order_changed(self, column, order):
         # Don't use self.album_table.horizontalHeaderItem(column).text()
