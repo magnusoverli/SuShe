@@ -326,6 +326,7 @@ class DragDropTableView(QTableView):
             # The model already has the correct final arrangement
             # Just need to mark it as modified now
             self.model().is_modified = True
+            self.model().layoutChanged.emit()
             
             # Store dropped rows for highlighting
             self.dropped_rows = self.dragged_rows
