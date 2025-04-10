@@ -571,11 +571,11 @@ QRadioButton::indicator:checked {
 }
 
 QTableView:focus {
-    border: 1px solid #1DB954;
+    border: none;
 }
 
 QListWidget:focus {
-    border: 1px solid #1DB954;
+    border: none;
 }
 
 /* List Widget */

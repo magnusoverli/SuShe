@@ -12,7 +12,7 @@ import socket
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
-from PyQt6.QtCore import QObject, pyqtSignal, QThread, QMutex, QWaitCondition
+from PyQt6.QtCore import QObject, pyqtSignal, QMutex, QWaitCondition
 
 class SpotifyAuth(QObject):
     """

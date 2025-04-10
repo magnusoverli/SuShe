@@ -1,9 +1,7 @@
 # album_model.py
 
 from PyQt6.QtCore import (Qt, QAbstractTableModel, QModelIndex, QVariant, 
-                          QMimeData, QByteArray, QDataStream, QIODevice, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve, QAbstractAnimation
-)
-import logging
+                          QMimeData, QByteArray, QDataStream, QIODevice)
 
 class AlbumModel(QAbstractTableModel):
     """

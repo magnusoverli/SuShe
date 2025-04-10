@@ -1,9 +1,9 @@
 # delegates.py
 
 from PyQt6.QtWidgets import (
-    QStyledItemDelegate, QComboBox, QCompleter, QDoubleSpinBox, QMessageBox, QLabel, QStyle
+    QStyledItemDelegate, QComboBox, QCompleter, QLabel, QStyle
 )
-from PyQt6.QtGui import QKeyEvent, QPalette, QColor, QPolygon, QImage, QPixmap
+from PyQt6.QtGui import QPalette, QColor, QPolygon, QImage, QPixmap
 from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPoint
 import logging
 import re

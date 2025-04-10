@@ -23,8 +23,7 @@ import time
 from album_model import AlbumModel
 
 from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog, SendGenreDialog
-from workers import DownloadWorker, SubmitWorker, Worker
-from image_handler import ImageWidget
+from workers import DownloadWorker, Worker
 from menu_bar import MenuBar
 
 from delegates import (
