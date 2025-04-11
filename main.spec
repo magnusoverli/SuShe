@@ -342,21 +342,33 @@ try:
         # Create a git tag
         tag_name = f"v{version}"
         
-        # Ask if user wants to commit changes first (default: yes)
-        commit_changes = input("Do you want to commit changes first? (y/n) [y]: ").strip().lower() or 'y'
-        if commit_changes == 'y':
-            commit_message = input("Enter commit message [Release version " + version + "]: ").strip()
-            if not commit_message:
-                commit_message = f"Release version {version}"
+        # Check if there are any changes to commit
+        git_status = subprocess.run(
+            ["git", "status", "--porcelain"], 
+            capture_output=True, 
+            text=True, 
+            check=True
+        ).stdout.strip()
+        
+        if git_status:
+            print(f"Uncommitted changes detected:\n{git_status}")
+            # Ask if user wants to commit changes (default: yes)
+            commit_changes = input("Do you want to commit changes first? (y/n) [y]: ").strip().lower() or 'y'
+            if commit_changes == 'y':
+                commit_message = input("Enter commit message [Release version " + version + "]: ").strip()
+                if not commit_message:
+                    commit_message = f"Release version {version}"
+                    
+                subprocess.run(["git", "add", "."], check=True)
+                subprocess.run(["git", "commit", "-m", commit_message], check=True)
+                print("Changes committed.")
                 
-            subprocess.run(["git", "add", "."], check=True)
-            subprocess.run(["git", "commit", "-m", commit_message], check=True)
-            print("Changes committed.")
-            
-            # Push changes to remote
-            print("Pushing changes to remote...")
-            subprocess.run(["git", "push", "origin"], check=True)
-            print("Changes pushed to remote.")
+                # Push changes to remote
+                print("Pushing changes to remote...")
+                subprocess.run(["git", "push", "origin"], check=True)
+                print("Changes pushed to remote.")
+        else:
+            print("No uncommitted changes detected. Skipping commit step.")
         
         # Create and push tag (default: yes)
         create_tag = input(f"Create and push tag '{tag_name}'? (y/n) [y]: ").strip().lower() or 'y'
