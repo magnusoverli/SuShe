@@ -325,9 +325,9 @@ try:
         print(f"The installer is available at: {installer_path}")
         sys.exit(0)
     
-    # Level 3: Create GitHub release
+    # Level 3: Create GitHub release section with defaults
     print("\n==== GitHub Release ====")
-    
+
     # Check if GitHub CLI is installed
     try:
         gh_version = subprocess.run(["gh", "--version"], capture_output=True, text=True, check=False)
@@ -342,17 +342,24 @@ try:
         # Create a git tag
         tag_name = f"v{version}"
         
-        # Ask if user wants to commit changes first
-        commit_changes = input("Do you want to commit changes first? (y/n): ").strip().lower()
+        # Ask if user wants to commit changes first (default: yes)
+        commit_changes = input("Do you want to commit changes first? (y/n) [y]: ").strip().lower() or 'y'
         if commit_changes == 'y':
-            commit_message = input("Enter commit message: ")
-            if commit_message:
-                subprocess.run(["git", "add", "."], check=True)
-                subprocess.run(["git", "commit", "-m", commit_message], check=True)
-                print("Changes committed.")
+            commit_message = input("Enter commit message [Release version " + version + "]: ").strip()
+            if not commit_message:
+                commit_message = f"Release version {version}"
+                
+            subprocess.run(["git", "add", "."], check=True)
+            subprocess.run(["git", "commit", "-m", commit_message], check=True)
+            print("Changes committed.")
+            
+            # Push changes to remote
+            print("Pushing changes to remote...")
+            subprocess.run(["git", "push", "origin"], check=True)
+            print("Changes pushed to remote.")
         
-        # Create and push tag
-        create_tag = input(f"Create and push tag '{tag_name}'? (y/n): ").strip().lower()
+        # Create and push tag (default: yes)
+        create_tag = input(f"Create and push tag '{tag_name}'? (y/n) [y]: ").strip().lower() or 'y'
         if create_tag == 'y':
             # Check if tag already exists
             tag_exists = subprocess.run(
@@ -364,7 +371,7 @@ try:
             
             if tag_exists:
                 print(f"Tag {tag_name} already exists.")
-                replace_tag = input("Replace existing tag? (y/n): ").strip().lower()
+                replace_tag = input("Replace existing tag? (y/n) [y]: ").strip().lower() or 'y'
                 if replace_tag == 'y':
                     # Delete local and remote tag
                     subprocess.run(["git", "tag", "-d", tag_name], check=True)
@@ -385,24 +392,17 @@ try:
                 subprocess.run(["git", "push", "origin", tag_name], check=True)
                 print(f"Tag {tag_name} created and pushed.")
         
-        # Create GitHub release
-        create_github_release = input("Create GitHub release? (y/n): ").strip().lower()
+        # Create GitHub release (default: yes)
+        create_github_release = input("Create GitHub release? (y/n) [y]: ").strip().lower() or 'y'
         if create_github_release == 'y':
-            # Ask about release notes
-            notes_option = input("Release notes options:\n1. Generate automatically\n2. Use file\n3. Enter manually\nChoose option (1-3): ").strip()
+            # Simplified release notes options
+            notes_option = input("Release notes options:\n1. Generate automatically (default)\n2. Enter manually\nChoose option (1-2) [1]: ").strip() or '1'
             
             release_cmd = ["gh", "release", "create", tag_name, "--title", f"SuShe {tag_name}"]
             
-            if notes_option == "1":
+            if notes_option == '1':
                 release_cmd.append("--generate-notes")
-            elif notes_option == "2":
-                notes_file = input("Enter path to release notes file: ").strip()
-                if os.path.exists(notes_file):
-                    release_cmd.extend(["--notes-file", notes_file])
-                else:
-                    print(f"Warning: File {notes_file} not found. Using auto-generated notes.")
-                    release_cmd.append("--generate-notes")
-            elif notes_option == "3":
+            elif notes_option == '2':
                 print("Enter release notes (end with a line containing only '###'):")
                 notes_lines = []
                 while True:
@@ -435,12 +435,12 @@ try:
                 print(f"Error creating GitHub release: {e}")
             
             # Clean up temporary notes file if it was created
-            if notes_option == "3" and 'temp_notes_path' in locals():
+            if notes_option == '2' and 'temp_notes_path' in locals():
                 try:
                     os.unlink(temp_notes_path)
                 except:
                     pass
-    
+
         print("\nBuild completed at Level 3: Executable, installer, and GitHub release")
         
     except Exception as e:
