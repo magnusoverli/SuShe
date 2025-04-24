@@ -2256,10 +2256,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     "release_date": release_date_formatted,
                     "cover_image": base64_image,
                     "cover_image_format": "PNG",
-                    "country": "Country",
-                    "genre_1": "Genre 1",
-                    "genre_2": "Genre 2",
-                    "comments": "Comment",
+                    "country": "",
+                    "genre_1": "",
+                    "genre_2": "",
+                    "comments": "",
                     "rank": self.album_model.rowCount() + 1,
                     "points": 1
                 }
