@@ -40,6 +40,9 @@ class AlbumModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
                 return self.COLUMN_NAMES[section]
+            elif orientation == Qt.Orientation.Vertical:
+                # Return 1-based index for row numbers
+                return str(section + 1)
         return QVariant()
     
     def data(self, index, role):

@@ -84,6 +84,16 @@ class MenuBar:
             "Quit", "Ctrl+Q", triggered=self.main_window.close_application
         )
         file_menu.addAction(quit_action)
+        
+        # View menu
+        view_menu = bar.addMenu("View")
+        
+        # Show Positions action (checkable)
+        self.main_window.show_positions_action = self.main_window.create_action(
+            "Show Positions", triggered=self.main_window.toggle_show_positions, checkable=True
+        )
+        self.main_window.show_positions_action.setChecked(True)  # Default to showing positions
+        view_menu.addAction(self.main_window.show_positions_action)
 
         # Help menu
         help_menu = bar.addMenu("Help")
