@@ -702,3 +702,95 @@ class SendGenreDialog(QDialog):
         except Exception as e:
             logging.error(f"Exception occurred while submitting genres: {e}")
             QMessageBox.critical(self, "Submission Error", f"An error occurred: {e}")
+
+class GenreUpdateDialog(QDialog):
+    """
+    Dialog to display genre changes and ask for confirmation.
+    """
+    def __init__(self, added_genres, removed_genres, parent=None):
+        super().__init__(parent)
+        self.added_genres = sorted(added_genres)
+        self.removed_genres = sorted(removed_genres)
+        self.initUI()
+        
+    def initUI(self):
+        self.setWindowTitle("Genre Definitions Update")
+        self.setMinimumWidth(450)
+        
+        # Set up the layout
+        layout = QVBoxLayout(self)
+        
+        # Info label at the top
+        info_label = QLabel("A new version of genre definitions is available. "
+                           "Would you like to update?")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+        
+        # Added genres group
+        if self.added_genres:
+            added_group = QGroupBox(f"New Genres ({len(self.added_genres)})")
+            added_layout = QVBoxLayout(added_group)
+            
+            added_list = QListWidget()
+            for genre in self.added_genres:
+                added_list.addItem(genre)
+            added_list.setMaximumHeight(150)
+            
+            added_layout.addWidget(added_list)
+            layout.addWidget(added_group)
+        
+        # Removed genres group
+        if self.removed_genres:
+            removed_group = QGroupBox(f"Removed Genres ({len(self.removed_genres)})")
+            removed_layout = QVBoxLayout(removed_group)
+            
+            removed_list = QListWidget()
+            for genre in self.removed_genres:
+                removed_list.addItem(genre)
+            removed_list.setMaximumHeight(150)
+            
+            removed_layout.addWidget(removed_list)
+            layout.addWidget(removed_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        self.cancel_button = QPushButton("Skip Update")
+        self.update_button = QPushButton("Update Genres")
+        self.update_button.setDefault(True)
+        
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.update_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Connect signals
+        self.cancel_button.clicked.connect(self.reject)
+        self.update_button.clicked.connect(self.accept)
+        
+        # Apply the Spotify-style styling that matches the rest of the app
+        self.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #333333;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 15px;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 3px;
+            }
+            
+            QListWidget {
+                background-color: #1A1A1A;
+                border: 1px solid #333333;
+                border-radius: 3px;
+            }
+            
+            QPushButton {
+                min-width: 120px;
+                min-height: 30px;
+            }
+        """)

@@ -11,6 +11,8 @@ from PIL import Image
 from io import BytesIO
 import requests
 import logging
+import hashlib
+import shutil
 import base64
 from functools import partial
 import os
@@ -525,12 +527,16 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.update_window_title()
             self.dataChanged = False
 
-        # Perform the update check and decide whether to show the main window
+        # Check for application updates first
         should_show = self.check_for_updates()
-
+        
         if should_show:
             # Show the main window after update check is done
             self.show()
+            
+            # Also check for genre definition updates, but with a slight delay
+            # to avoid too many operations at startup
+            QTimer.singleShot(2000, self.check_for_genre_updates)
         else:
             # The user chose to download an update; exit the application
             logging.info("Exiting application after initiating update download.")
@@ -921,6 +927,112 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def on_download_failed(self, error_message):
         self.progress_dialog.close()
         QMessageBox.critical(self, "Download Failed", f"Failed to download update: {error_message}")
+
+    def check_for_genre_updates(self):
+        """
+        Check if there is a newer version of genres.txt on GitHub.
+        If so, prompt the user to update.
+        """
+        if not all([self.github_owner, self.github_repo]):
+            logging.warning("GitHub owner or repository name is missing. Cannot check for genre updates.")
+            return
+        
+        try:
+            # Get the content of the remote genres.txt file
+            url = f"https://api.github.com/repos/{self.github_owner}/{self.github_repo}/contents/genres.txt"
+            headers = {}
+            if self.github_token:
+                headers["Authorization"] = f"token {self.github_token}"
+            
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            
+            remote_file_info = response.json()
+            remote_content = base64.b64decode(remote_file_info["content"]).decode("utf-8")
+            remote_sha = remote_file_info["sha"]
+            
+            # Get the local file info
+            local_path = resource_path("genres.txt")
+            if not os.path.exists(local_path):
+                logging.error(f"Local genres.txt not found at {local_path}")
+                return
+            
+            with open(local_path, 'r', encoding='utf-8') as f:
+                local_content = f.read()
+            
+            # Calculate SHA of local file for comparison
+            local_sha = hashlib.sha1(local_content.encode()).hexdigest()
+            
+            # If files are identical, no update needed
+            if local_sha == remote_sha:
+                logging.info("Genres.txt is up to date.")
+                return
+            
+            # Compare the genre lists
+            local_genres = set(line.strip() for line in local_content.splitlines() if line.strip())
+            remote_genres = set(line.strip() for line in remote_content.splitlines() if line.strip())
+            
+            # Identify additions and removals
+            added_genres = remote_genres - local_genres
+            removed_genres = local_genres - remote_genres
+            
+            if not added_genres and not removed_genres:
+                # Files differ but no actual genre changes (maybe just whitespace or order)
+                logging.info("No actual changes in genres.txt content, skipping update.")
+                return
+            
+            # Show dialog with changes and ask for confirmation
+            dialog = GenreUpdateDialog(added_genres, removed_genres, self)
+            result = dialog.exec()
+            
+            if result == QDialog.DialogCode.Accepted:
+                # User confirmed update, apply it
+                self.apply_genre_update(remote_content)
+                
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error checking for genre updates: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error checking for genre updates: {e}")
+
+    def apply_genre_update(self, new_content):
+        """
+        Apply an update to the genres.txt file and reload genres.
+        
+        Args:
+            new_content (str): The new content for genres.txt
+        """
+        try:
+            local_path = resource_path("genres.txt")
+            
+            # Create a backup first
+            backup_path = f"{local_path}.bak"
+            if os.path.exists(local_path):
+                shutil.copy2(local_path, backup_path)
+                logging.info(f"Created backup of genres.txt at {backup_path}")
+            
+            # Write the new content
+            with open(local_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            
+            logging.info("Updated genres.txt successfully")
+            
+            # Reload the genres
+            self.genres = read_file_lines('genres.txt', transform=lambda lines: {line.title() for line in lines})
+            
+            # Update any genre delegates that exist
+            if hasattr(self, 'genre_delegate_1') and self.genre_delegate_1:
+                self.genre_delegate_1.items = self.genres
+            if hasattr(self, 'genre_delegate_2') and self.genre_delegate_2:
+                self.genre_delegate_2.items = self.genres
+                
+            # Show success message
+            QMessageBox.information(self, "Genres Updated", 
+                                "Genre definitions have been updated successfully.")
+                                
+        except Exception as e:
+            logging.error(f"Failed to apply genre update: {e}")
+            QMessageBox.critical(self, "Update Failed", 
+                                f"Failed to update genres: {e}")
 
     def load_settings(self):
         is_packaged = getattr(sys, 'frozen', False)
