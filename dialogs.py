@@ -2,7 +2,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QLineEdit, QTextEdit, QComboBox, 
-                            QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter)
+                            QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter, QListWidget)
 import logging
 import os
 import requests
