@@ -154,6 +154,7 @@ Synthpop
 Synthwave
 Technical Death Metal
 Technical Thrash Metal
+Test Genre 2
 Thrash Metal
 Thrashcore
 Traditional Doom Metal
