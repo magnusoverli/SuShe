@@ -24,7 +24,7 @@ import time
 
 from album_model import AlbumModel
 
-from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog, SendGenreDialog
+from dialogs import HelpDialog, LogViewerDialog, ManualAddAlbumDialog, SubmitDialog, UpdateDialog, SendGenreDialog, GenreUpdateDialog
 from workers import DownloadWorker, Worker
 from menu_bar import MenuBar
 
