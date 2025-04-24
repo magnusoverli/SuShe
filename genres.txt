@@ -134,6 +134,7 @@ Shitgaze
 Shoegaze
 Singer-Songwriter
 Skacore
+Skagaze
 Slacker Rock
 Slam Death Metal
 Slowcore
@@ -154,7 +155,6 @@ Synthpop
 Synthwave
 Technical Death Metal
 Technical Thrash Metal
-Test Genre 2
 Thrash Metal
 Thrashcore
 Traditional Doom Metal
