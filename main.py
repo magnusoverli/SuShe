@@ -2278,11 +2278,39 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_list.clear()
         self.album_id_map.clear()
 
-        self.album_list.blockSignals(True)  # Block signals to minimize UI updates
+        # Step 1: Group albums by name+year to detect duplicates
+        albums_by_name_year = {}
         for album in albums:
-            display_text = f"{album['name']} - {album['release_date'][:4]}"
+            # Get release year (first 4 chars of release_date)
+            year = album.get('release_date', '')[:4]
+            # Create a key combining name and year
+            name_year_key = f"{album['name']} - {year}"
+            if name_year_key not in albums_by_name_year:
+                albums_by_name_year[name_year_key] = []
+            albums_by_name_year[name_year_key].append(album)
+        
+        # Step 2: Add items to the list, with disambiguation text for duplicates
+        self.album_list.blockSignals(True)  # Block signals to minimize UI updates
+        
+        # Process albums in the original order to maintain the API's sort order
+        for album in albums:
+            year = album.get('release_date', '')[:4]
+            name_year_key = f"{album['name']} - {year}"
+            
+            # Check if we need disambiguation (if there are multiple albums with same name+year)
+            has_duplicates = len(albums_by_name_year[name_year_key]) > 1
+            
+            # Create appropriate display text
+            if has_duplicates:
+                album_type = album.get('album_type', '').title()
+                display_text = f"{album['name']} - {year} ({album_type})"
+            else:
+                display_text = f"{album['name']} - {year}"
+            
+            # Add to list and map
             self.album_list.addItem(display_text)
             self.album_id_map[display_text] = album['id']
+        
         self.album_list.blockSignals(False)
 
     def fetch_album_details(self, item):
@@ -2501,19 +2529,24 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Handle Spotify URLs
         if url.startswith('spotify:'):
-            if self.is_spotify_installed():
+            spotify_installed = self.is_spotify_installed()
+            logging.info(f"Is Spotify installed? {spotify_installed}")
+            
+            if spotify_installed:
                 try:
                     # Try to open with the Spotify app
                     if sys.platform.startswith('win'):
-                        os.startfile(url)
+                        subprocess.Popen(['start', '', url], shell=True)
+                        return
                     elif sys.platform == 'darwin':
                         subprocess.call(['open', url])
+                        return
                     else:
                         subprocess.call(['xdg-open', url])
-                    return
+                        return
                 except Exception as e:
-                    logging.error(f"Failed to open Spotify URI: {e}")
-                    # Don't show error yet, try fallback
+                    logging.error(f"Failed to open Spotify URI using client: {e}")
+                    # Fall through to web fallback
             
             # Fallback to web if app opening fails or Spotify isn't installed
             try:
@@ -2521,11 +2554,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 if url.startswith('spotify:album:'):
                     album_id = url.replace('spotify:album:', '')
                     web_url = f'https://open.spotify.com/album/{album_id}'
+                    logging.info(f"Falling back to web URL: {web_url}")
                     QDesktopServices.openUrl(QUrl(web_url))
                     return
                 elif url.startswith('spotify:search:'):
                     search_term = url.replace('spotify:search:', '')
                     web_url = f'https://open.spotify.com/search/{search_term}'
+                    logging.info(f"Falling back to web URL: {web_url}")
                     QDesktopServices.openUrl(QUrl(web_url))
                     return
             except Exception as e:
@@ -2569,18 +2604,53 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 # Check Windows Registry
                 import winreg
                 try:
-                    winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Spotify")
-                    return True
-                except WindowsError:
+                    # Check both HKEY_CURRENT_USER and HKEY_LOCAL_MACHINE
+                    try:
+                        winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Spotify")
+                        return True
+                    except WindowsError:
+                        try:
+                            winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Spotify")
+                            return True
+                        except WindowsError:
+                            # Also check for Spotify.exe in common locations
+                            program_files = os.environ.get('PROGRAMFILES', 'C:\\Program Files')
+                            program_files_x86 = os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)')
+                            
+                            paths_to_check = [
+                                os.path.join(program_files, 'Spotify', 'Spotify.exe'),
+                                os.path.join(program_files_x86, 'Spotify', 'Spotify.exe'),
+                                os.path.join(os.environ.get('APPDATA', ''), 'Spotify', 'Spotify.exe')
+                            ]
+                            
+                            for path in paths_to_check:
+                                if os.path.exists(path):
+                                    logging.info(f"Found Spotify at {path}")
+                                    return True
+                            
+                            return False
+                except Exception as e:
+                    logging.warning(f"Error checking Windows registry: {e}")
                     return False
             elif sys.platform == 'darwin':
                 # Check macOS Applications folder
-                return os.path.exists("/Applications/Spotify.app")
+                paths = [
+                    "/Applications/Spotify.app",
+                    os.path.expanduser("~/Applications/Spotify.app")
+                ]
+                for path in paths:
+                    if os.path.exists(path):
+                        return True
+                return False
             else:
                 # Basic check for Linux
-                return subprocess.call(['which', 'spotify'], 
-                                    stdout=subprocess.DEVNULL, 
-                                    stderr=subprocess.DEVNULL) == 0
+                try:
+                    result = subprocess.run(['which', 'spotify'], 
+                                        stdout=subprocess.PIPE, 
+                                        stderr=subprocess.PIPE)
+                    return result.returncode == 0
+                except Exception:
+                    return False
         except Exception as e:
             logging.warning(f"Error checking if Spotify is installed: {e}")
             return False  # Assume not installed if check fails
