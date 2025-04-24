@@ -2248,7 +2248,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 image_bytes = buffered.getvalue()
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-                # Create album data dictionary
+                # Create album data dictionary with empty genre values
                 album_data = {
                     "artist": artist_name,
                     "album": album_name,
@@ -2256,10 +2256,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     "release_date": release_date_formatted,
                     "cover_image": base64_image,
                     "cover_image_format": "PNG",
-                    "country": "",
-                    "genre_1": "",
-                    "genre_2": "",
-                    "comments": "",
+                    "country": "Country",
+                    "genre_1": "",  # Changed from "Genre 1" to empty string
+                    "genre_2": "",  # Changed from "Genre 2" to empty string
+                    "comments": "Comment",
                     "rank": self.album_model.rowCount() + 1,
                     "points": 1
                 }

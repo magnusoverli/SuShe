@@ -177,10 +177,6 @@ class ComboBoxDelegate(QStyledItemDelegate):
         """Updates the model with the editor's current value."""
         new_value = editor.currentText().strip()
         
-        # Don't set empty values - keep the placeholder
-        if not new_value:
-            return
-            
         # Only update if the value actually changed
         current_value = model.data(index, Qt.ItemDataRole.EditRole)
         if new_value != current_value:
@@ -339,10 +335,6 @@ class GenreSearchDelegate(QStyledItemDelegate):
         """
         new_value = editor.currentText().strip()
         
-        # Don't set empty values - keep the placeholder
-        if not new_value:
-            return
-            
         # Only update if the value actually changed
         current_value = model.data(index, Qt.ItemDataRole.EditRole)
         if new_value != current_value:
