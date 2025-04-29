@@ -3265,18 +3265,46 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     
                 # Determine the format based on the file extension
                 _, ext = os.path.splitext(cover_image_path)
-                format = ext.replace('.', '').upper()  # e.g., "PNG", "WEBP"
-                if format not in ["PNG", "WEBP", "JPEG", "JPG"]:
-                    format = "PNG"  # Default to PNG if unsupported
+                ext = ext.replace('.', '').upper()  # e.g., "PNG", "WEBP", "JPG"
+                
+                # Handle JPG format - convert to JPEG for PIL
+                if ext == "JPG":
+                    ext = "JPEG"
+                    
+                # Default to PNG if unsupported
+                if ext not in ["PNG", "WEBP", "JPEG"]:
+                    logging.warning(f"Unsupported image format: {ext}, defaulting to PNG")
+                    ext = "PNG"
                     
                 # Resize the image before encoding
-                image = Image.open(BytesIO(image_data))
-                image.thumbnail((200, 200), Image.Resampling.LANCZOS)
-                buffered = BytesIO()
-                image.save(buffered, format=format)
-                image_bytes = buffered.getvalue()
-                base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                image_format = format
+                try:
+                    image = Image.open(BytesIO(image_data))
+                    image = image.convert("RGB")  # Convert to RGB to ensure compatibility
+                    image.thumbnail((200, 200), Image.Resampling.LANCZOS)
+                    buffered = BytesIO()
+                    image.save(buffered, format=ext)
+                    image_bytes = buffered.getvalue()
+                    base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                    image_format = ext
+                    logging.info(f"Image processed successfully in {ext} format")
+                except Exception as e:
+                    logging.error(f"Failed to process image with PIL: {e}")
+                    # Fallback method if PIL processing fails
+                    try:
+                        pixmap = QPixmap(cover_image_path)
+                        if not pixmap.isNull():
+                            pixmap = pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                            byte_array = QByteArray()
+                            buffer = QBuffer(byte_array)
+                            buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+                            pixmap.save(buffer, "PNG")  # Always use PNG for the fallback
+                            base64_image = base64.b64encode(byte_array.data()).decode('utf-8')
+                            image_format = "PNG"
+                            logging.info("Image processed successfully using Qt fallback method")
+                        else:
+                            logging.error("Failed to create pixmap from image")
+                    except Exception as e2:
+                        logging.error(f"Failed to process image with Qt fallback: {e2}")
             except Exception as e:
                 logging.error(f"Failed to process cover image: {e}")
                 base64_image = None

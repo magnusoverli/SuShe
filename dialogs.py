@@ -147,8 +147,9 @@ class ManualAddAlbumDialog(QDialog):
             border-radius: 4px;
             font-size: 14px;
             color: #888888;
-            cursor: pointer;
         """)
+        # Set the cursor programmatically instead of with CSS
+        self.image_preview.setCursor(Qt.CursorShape.PointingHandCursor)
         # Make the label clickable
         self.image_preview.mousePressEvent = self.image_preview_clicked
         image_layout.addWidget(self.image_preview, 1, Qt.AlignmentFlag.AlignCenter)
@@ -208,41 +209,102 @@ class ManualAddAlbumDialog(QDialog):
         classification_form.setSpacing(12)
         classification_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         
-        # Country dropdown
+        # Country dropdown - using styled QComboBox
         self.country_combo = QComboBox(self)
-        # Use default empty list if parent doesn't have countries attribute
         countries = getattr(self._parent, 'countries', []) if self._parent else []
         self.country_combo.addItems(countries)
         self.country_combo.setMinimumHeight(36)
+        self.country_combo.setEditable(True)
+        self.country_combo.setMaxVisibleItems(15)  # Show a reasonable number of items
+        # Add completer for better search
+        country_completer = QCompleter(countries, self.country_combo)
+        country_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        country_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        # Make the popup match the combobox popup
+        country_popup = country_completer.popup()
+        if country_popup:
+            country_popup.setStyleSheet("""
+                background-color: #2D2D30; 
+                color: white;
+                selection-background-color: #3D3D42;
+                border: 1px solid #555555;
+            """)
+        self.country_combo.setCompleter(country_completer)
+        # Style the combobox popup to match the completer
+        self.country_combo.setStyleSheet("""
+            QComboBox QAbstractItemView {
+                background-color: #2D2D30;
+                color: white;
+                selection-background-color: #3D3D42;
+                border: 1px solid #555555;
+            }
+        """)
         classification_form.addRow("Country:", self.country_combo)
         
-        # Genre 1 dropdown - using our custom EditableComboBox
-        self.genre1_combo = EditableComboBox(self)
-        # Use default empty list if parent doesn't have genres attribute
+        # Genre 1 dropdown - using styled QComboBox
+        self.genre1_combo = QComboBox(self)
         genres = getattr(self._parent, 'genres', []) if self._parent else []
         self.genre1_combo.addItems(genres)
         self.genre1_combo.setMinimumHeight(36)
+        self.genre1_combo.setEditable(True)
+        self.genre1_combo.setMaxVisibleItems(15)
         # Add completer for better search
-        completer1 = QCompleter(genres, self.genre1_combo)
-        completer1.setFilterMode(Qt.MatchFlag.MatchContains)
-        # Genre 2 dropdown - using our custom EditableComboBox
-        self.genre2_combo = EditableComboBox(self)
-        # Use default empty list if parent doesn't have genres attribute
-        genres = getattr(self._parent, 'genres', []) if self._parent else []
-        self.genre2_combo.addItems(genres)
+        genre1_completer = QCompleter(genres, self.genre1_combo)
+        genre1_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        genre1_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        # Make the popup match the combobox popup
+        genre1_popup = genre1_completer.popup()
+        if genre1_popup:
+            genre1_popup.setStyleSheet("""
+                background-color: #2D2D30; 
+                color: white;
+                selection-background-color: #3D3D42;
+                border: 1px solid #555555;
+            """)
+        self.genre1_combo.setCompleter(genre1_completer)
+        # Style the combobox popup to match the completer
+        self.genre1_combo.setStyleSheet("""
+            QComboBox QAbstractItemView {
+                background-color: #2D2D30;
+                color: white;
+                selection-background-color: #3D3D42;
+                border: 1px solid #555555;
+            }
+        """)
+        classification_form.addRow("Genre 1:", self.genre1_combo)
         
-        # Genre 2 dropdown - using our custom EditableComboBox
-        self.genre2_combo = EditableComboBox(self)
-        genres2 = getattr(self._parent, 'genres', []) if self._parent else []
-        self.genre2_combo.addItems(genres2)
+        # Genre 2 dropdown - using styled QComboBox
+        self.genre2_combo = QComboBox(self)
+        self.genre2_combo.addItems(genres)
         self.genre2_combo.setMinimumHeight(36)
+        self.genre2_combo.setEditable(True)
+        self.genre2_combo.setMaxVisibleItems(15)
         # Add completer for better search
-        completer2 = QCompleter(genres2, self.genre2_combo)
-        completer2.setFilterMode(Qt.MatchFlag.MatchContains)
-        completer2.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.genre2_combo.setCompleter(completer2)
+        genre2_completer = QCompleter(genres, self.genre2_combo)
+        genre2_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        genre2_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        # Make the popup match the combobox popup
+        genre2_popup = genre2_completer.popup()
+        if genre2_popup:
+            genre2_popup.setStyleSheet("""
+                background-color: #2D2D30; 
+                color: white;
+                selection-background-color: #3D3D42;
+                border: 1px solid #555555;
+            """)
+        self.genre2_combo.setCompleter(genre2_completer)
+        # Style the combobox popup to match the completer
+        self.genre2_combo.setStyleSheet("""
+            QComboBox QAbstractItemView {
+                background-color: #2D2D30;
+                color: white;
+                selection-background-color: #3D3D42;
+                border: 1px solid #555555;
+            }
+        """)
         classification_form.addRow("Genre 2:", self.genre2_combo)
         
+        classification_group.setLayout(classification_form)
         right_column.addWidget(classification_group)
         
         # Comments Group
@@ -255,6 +317,7 @@ class ManualAddAlbumDialog(QDialog):
         self.comments_input.setMinimumHeight(80)
         comments_layout.addWidget(self.comments_input)
         
+        comments_group.setLayout(comments_layout)
         right_column.addWidget(comments_group)
         
         # Add columns to content layout
@@ -475,10 +538,10 @@ class ManualAddAlbumDialog(QDialog):
         # Use the formatted date
         release_date = formatted_date
         
-        # Get selected values
-        country = self.country_combo.currentText()
-        genre1 = self.genre1_combo.currentText()
-        genre2 = self.genre2_combo.currentText()
+        # Get selected values from the QComboBox fields
+        country = self.country_combo.currentText().strip()
+        genre1 = self.genre1_combo.currentText().strip()
+        genre2 = self.genre2_combo.currentText().strip()
         comments = self.comments_input.toPlainText()
         
         # Add the album to the parent's table if parent exists and has the method
