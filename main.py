@@ -1241,7 +1241,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.matches = []
         self.current_match_index = -1
         # Update the view to remove highlights
-        self.album_table.viewport().update()
+        viewport = self.album_table.viewport()
+        if viewport:
+            viewport.update()
 
     def search_album_list(self):
         search_text = self.search_bar.text().strip().lower()
@@ -1282,11 +1284,18 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
         self.current_match_index = (self.current_match_index + 1) % len(self.matches)
         row, column = self.matches[self.current_match_index]
-        self.album_table.scrollTo(self.album_model.index(row, column), QTableView.ScrollHint.PositionAtCenter)
-        self.album_table.selectionModel().select(
-            self.album_model.index(row, column),
-            QItemSelectionModel.SelectionFlag.ClearAndSelect
-        )
+        model_index = self.album_model.index(row, column) # Get the model index
+        self.album_table.scrollTo(model_index, QTableView.ScrollHint.PositionAtCenter) # Use model index for scrolling
+
+        # Check if selection model exists before using it
+        selection_model = self.album_table.selectionModel()
+        if selection_model:
+            selection_model.select(
+                model_index, # Use model index for selection
+                QItemSelectionModel.SelectionFlag.ClearAndSelect
+            )
+        else:
+            logging.warning("Selection model not available for album table.")
 
     def goto_previous_match(self):
         if not self.matches:
