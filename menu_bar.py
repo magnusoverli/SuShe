@@ -10,9 +10,7 @@ class MenuBar:
     def setup_menu_bar(self):
         # Create a menu bar and ensure it fills the width
         bar = QMenuBar()
-        bar.setParent(self.main_window)
-        bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.main_window.layout().addWidget(bar)
+        self.main_window.setMenuBar(bar)
 
         # File menu
         file_menu = QMenu("File", bar)
@@ -88,7 +86,8 @@ class MenuBar:
         file_menu.addAction(quit_action)
         
         # View menu
-        view_menu = bar.addMenu("View")
+        view_menu = QMenu("View", bar)
+        bar.addMenu(view_menu)
         
         # Show Positions action (checkable)
         self.main_window.show_positions_action = self.main_window.create_action(
@@ -98,14 +97,16 @@ class MenuBar:
         view_menu.addAction(self.main_window.show_positions_action)
 
         # Help menu
-        help_menu = bar.addMenu("Help")
+        help_menu = QMenu("Help", bar)
+        bar.addMenu(help_menu)
         help_action = self.main_window.create_action(
             "Help", triggered=self.main_window.show_help
         )
         help_menu.addAction(help_action)
 
         # About menu
-        about_menu = bar.addMenu("About")
+        about_menu = QMenu("About", bar)
+        bar.addMenu(about_menu)
         about_action = self.main_window.create_action(
             "About SuShe", triggered=self.main_window.show_about_dialog
         )
