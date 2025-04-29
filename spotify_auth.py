@@ -8,7 +8,9 @@ import threading
 import requests
 import json
 import time
+import sys
 import socket
+import subprocess
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import logging
@@ -30,10 +32,12 @@ class SpotifyAuth(QObject):
         self.access_token = None
         self.refresh_token = None
         self.code_verifier = None
-        self.auth_code = None
+        from typing import Optional
+        self.auth_code: Optional[str] = None
         self.server = None
         self.server_thread = None
-        
+        self.socket = None
+
         # Thread synchronization
         self.mutex = QMutex()
         self.auth_result_available = QWaitCondition()
@@ -416,6 +420,7 @@ class SpotifyAuth(QObject):
                 # Create an HTTP server
                 class ReuseAddrHTTPServer(HTTPServer):
                     def server_bind(self):
+                        assert auth_instance.socket is not None, "auth_instance.socket is None"
                         self.socket = auth_instance.socket
                 
                 # Create and start the server
