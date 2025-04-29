@@ -196,13 +196,27 @@ class DragDropTableView(QTableView):
     # Add event to track mouse position for hover effects
     def mouseMoveEvent(self, e):
         super().mouseMoveEvent(e)
-        index = self.indexAt(e.position().toPoint())
-        if index.isValid():
-            self.hover_row = index.row()
-            self.viewport().update()
-        else:
-            self.hover_row = -1
-            self.viewport().update()
+        if e is None:
+            return
+            
+        try:
+            # For PyQt6
+            pos = e.position().toPoint()
+        except (AttributeError, TypeError):
+            try:
+                # Fallback for older PyQt versions
+                pos = e.pos()
+            except AttributeError:
+                return  # Cannot determine position
+        
+        viewport = self.viewport()
+        if viewport:  # Check if viewport exists before using it
+            index = self.indexAt(pos)
+            if index.isValid():
+                self.hover_row = index.row()
+            else:
+                self.hover_row = -1
+            viewport.update()
 
     def startDrag(self, supportedActions):
         indexes = self.selectedIndexes()
@@ -219,8 +233,14 @@ class DragDropTableView(QTableView):
         self.dragged_rows = sorted(list(rows))
         self.drag_active = True
         
+        # Check if model exists before accessing its methods
+        model = self.model()
+        if model is None:
+            logging.error("Cannot start drag: No model is set for the table view.")
+            return
+            
         # Create mime data
-        mime_data = self.model().mimeData(indexes)
+        mime_data = model.mimeData(indexes)
         
         # Create a QDrag object
         drag = QDrag(self)
