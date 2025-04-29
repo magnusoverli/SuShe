@@ -517,9 +517,13 @@ class DragDropTableView(QTableView):
         if self.drag_active:
             # The model already has the correct final arrangement
             # Just need to mark it as modified now
-            self.model().is_modified = True
-            self.model().layoutChanged.emit()
-            
+            model = self.model()
+            if isinstance(model, AlbumModel):
+                model.is_modified = True
+                model.layoutChanged.emit()
+            else:
+                logging.warning("Drop event occurred, but the model is not an AlbumModel or is None.")
+
             # Store dropped rows for highlighting
             self.dropped_rows = self.dragged_rows
             
@@ -559,12 +563,17 @@ class DragDropTableView(QTableView):
         
         # Get current visual positions of all rows
         current_positions = {}
-        for row in range(self.model().rowCount()):
-            rect = self.visualRect(self.model().index(row, 0))
-            current_positions[row] = rect.y()
-        
         # Update the model with the new data arrangement
-        was_modified = self.model().is_modified
+        model = self.model()
+        if isinstance(model, AlbumModel):
+            was_modified = model.is_modified
+            model.set_album_data(target_data)
+            model.is_modified = was_modified  # Don't mark as modified during animations
+        else:
+            logging.error("Cannot animate reordering: Model is not an AlbumModel or is None.")
+            return # Stop animation if model is invalid
+
+        # Create animations from current positions to new positions
         self.model().set_album_data(target_data)
         self.model().is_modified = was_modified  # Don't mark as modified during animations
         
