@@ -877,7 +877,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         show_positions = self.show_positions_action.isChecked()
         
         # Update the vertical header visibility based on the toggle state
-        self.album_table.verticalHeader().setVisible(show_positions)
+        v_header = self.album_table.verticalHeader()
+        if v_header:
+            v_header.setVisible(show_positions)
+        else:
+            logging.warning("Could not toggle vertical header visibility: vertical header is None.")
         
         # Log the change
         logging.info(f"Row position numbers {'shown' if show_positions else 'hidden'}")
@@ -980,7 +984,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.progress_dialog.show()
 
         self.download_thread = QThread()
-        self.download_worker = DownloadWorker(download_url, self.github_token)
+        self.download_worker = DownloadWorker(download_url, self.github_token or "")
         self.download_worker.moveToThread(self.download_thread)
 
         self.download_thread.started.connect(self.download_worker.start_download)
@@ -1217,7 +1221,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.search_widget.setLayout(self.search_layout)
 
             # Add the search widget to the album_list_tab layout
-            self.album_list_tab.layout().insertWidget(0, self.search_widget)
+            self.album_list_layout.insertWidget(0, self.search_widget)
             self.search_widget.hide()
 
         if self.search_widget.isVisible():
@@ -1582,7 +1586,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.set_album_table_column_widths()
 
         # Set the layout for the album list tab
-        self.album_list_tab.setLayout(layout)
+        self.album_list_layout = layout  # Store the layout
+        self.album_list_tab.setLayout(self.album_list_layout)
 
     def on_sort_order_changed(self, column, order):
         # Don't use self.album_table.horizontalHeaderItem(column).text()
@@ -1616,19 +1621,22 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         ]
         
         # Apply column widths to both the header sections and table columns
-        for column, width in column_widths:
-            self.album_table.setColumnWidth(column, width)
-            header.resizeSection(column, width)  # This ensures header width = column width
-        
-        # Lock column sizes after setting them
-        for i in range(self.album_model.columnCount()):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
-        
-        # We can add a bit of extra styling to the header for better appearance
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        
-        # Update the visual properties of the headers to ensure they're refreshed
-        header.update()
+        if header:  # Check if header is not None
+            for column, width in column_widths:
+                self.album_table.setColumnWidth(column, width)
+                header.resizeSection(column, width)  # This ensures header width = column width
+            
+            # Lock column sizes after setting them
+            for i in range(self.album_model.columnCount()):
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Fixed)
+            
+            # We can add a bit of extra styling to the header for better appearance
+            header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            
+            # Update the visual properties of the headers to ensure they're refreshed
+            header.update()
+        else:
+            logging.error("Could not apply column widths because horizontal header is None.")
 
     def setup_settings_tab(self):
         layout = QVBoxLayout()
