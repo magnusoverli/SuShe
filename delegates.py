@@ -1,7 +1,8 @@
 # delegates.py
 
 from PyQt6.QtWidgets import (
-    QStyledItemDelegate, QComboBox, QCompleter, QLabel, QStyle, QApplication
+    QStyledItemDelegate, QComboBox, QCompleter, QLabel, QStyle, QApplication,
+    QWidget
 )
 from PyQt6.QtGui import QPalette, QColor, QPolygon, QImage, QPixmap
 from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPoint
@@ -247,9 +248,19 @@ class SearchHighlightDelegate(QStyledItemDelegate):
         Updates the search text and triggers a repaint.
         """
         self.search_text = text.lower()
-        self.parent().viewport().update()
+        parent = self.parent()
+        from PyQt6.QtWidgets import QAbstractItemView, QWidget
+        if isinstance(parent, QAbstractItemView):
+            viewport = parent.viewport()
+            if viewport:
+                viewport.update()
+        elif parent and isinstance(parent, QWidget):
+            parent.update()
 
     def paint(self, painter, option, index):
+        if not painter:
+            return
+            
         try:
             painter.save()
 
@@ -258,17 +269,47 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                 logging.error("Delegate parent is None")
                 super().paint(painter, option, index)
                 return
-
             # Draw the background
-            parent.style().drawPrimitive(
-                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
-            )
+            if isinstance(parent, QWidget) and hasattr(parent, 'style') and callable(parent.style):
+                style = parent.style()
+                if style:
+                    style.drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+                    )
+                else:
+                    # Fallback to application style
+                    app_style = QApplication.style()
+                    if app_style:
+                        app_style.drawPrimitive(
+                            QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
+                        )
+                    else:
+                        # Ultimate fallback when no style is available
+                        if option.state & QStyle.StateFlag.State_Selected:
+                            painter.fillRect(option.rect, option.palette.highlight())
+                        else:
+                            painter.fillRect(option.rect, option.palette.base())
+            else:
+                # Fallback to application style
+                app_style = QApplication.style()
+                if app_style:
+                    app_style.drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
+                    )
+                else:
+                    # Ultimate fallback when no style is available
+                    if option.state & QStyle.StateFlag.State_Selected:
+                        painter.fillRect(option.rect, option.palette.highlight())
+                    else:
+                        painter.fillRect(option.rect, option.palette.base())
 
             # First check if this cell has a widget
-            widget = parent.indexWidget(index)
-            if widget:
-                # If there's a widget, don't draw any text - let the widget handle it
-                return  # No explicit restore here - the finally block will handle it
+            from PyQt6.QtWidgets import QAbstractItemView
+            if isinstance(parent, QAbstractItemView):
+                widget = parent.indexWidget(index)
+                if widget:
+                    # If there's a widget, don't draw any text - let the widget handle it
+                    return  # No explicit restore here - the finally block will handle it
 
             # Get the cell text from the model data
             data = index.data(Qt.ItemDataRole.DisplayRole)
@@ -344,7 +385,14 @@ class GenreSearchDelegate(QStyledItemDelegate):
         Updates the search text and triggers a repaint.
         """
         self.search_text = text.lower()
-        self.parent().viewport().update()
+        parent = self.parent()
+        from PyQt6.QtWidgets import QAbstractItemView, QWidget
+        if isinstance(parent, QAbstractItemView):
+            viewport = parent.viewport()
+            if viewport:  # Check if viewport is not None
+                viewport.update()
+        elif parent and isinstance(parent, QWidget):
+            parent.update()
 
     def createEditor(self, parent, option, index):
         """
@@ -409,6 +457,9 @@ class GenreSearchDelegate(QStyledItemDelegate):
             editor.setGeometry(option.rect)
 
     def paint(self, painter, option, index):
+        if not painter:
+            return
+            
         try:
             painter.save()
 
@@ -419,9 +470,38 @@ class GenreSearchDelegate(QStyledItemDelegate):
                 return
 
             # Draw the background
-            parent.style().drawPrimitive(
-                QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
-            )
+            if isinstance(parent, QWidget) and hasattr(parent, 'style') and callable(parent.style):
+                style = parent.style()
+                if style:
+                    style.drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+                    )
+                else:
+                    # Fallback to application style
+                    app_style = QApplication.style()
+                    if app_style:
+                        app_style.drawPrimitive(
+                            QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
+                        )
+                    else:
+                        # Ultimate fallback when no style is available
+                        if option.state & QStyle.StateFlag.State_Selected:
+                            painter.fillRect(option.rect, option.palette.highlight())
+                        else:
+                            painter.fillRect(option.rect, option.palette.base())
+            else:
+                # Fallback to application style
+                app_style = QApplication.style()
+                if app_style:
+                    app_style.drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
+                    )
+                else:
+                    # Ultimate fallback when no style is available
+                    if option.state & QStyle.StateFlag.State_Selected:
+                        painter.fillRect(option.rect, option.palette.highlight())
+                    else:
+                        painter.fillRect(option.rect, option.palette.base())
 
             # Get the cell text
             data = index.data(Qt.ItemDataRole.DisplayRole)
