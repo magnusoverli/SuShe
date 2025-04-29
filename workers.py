@@ -69,6 +69,7 @@ class SubmitWorker(QThread):
 
     def run(self):
         url = f"https://api.telegram.org/bot{self.bot_token}/sendDocument"
+        resp = None
         try:
             with open(self.file_path, 'rb') as file:
                 files = {'document': (Path(self.file_path).name, file)}
@@ -82,11 +83,20 @@ class SubmitWorker(QThread):
             self.submission_finished.emit(True, "File submitted successfully.")
         except requests.exceptions.RequestException as e:
             logging.error(f"Submission failed: {e}")
-            desc = None
-            try:
-                desc = resp.json().get('description', str(e))
-            except Exception:
-                desc = str(e)
+            desc = str(e)  # Default description
+            if resp is not None:
+                try:
+                    # Try to get a more specific error from the response body
+                    error_info = resp.json()
+                    desc = error_info.get('description', desc)
+                except requests.exceptions.JSONDecodeError:
+                    # If response is not JSON, use the status code and reason
+                    desc = f"HTTP {resp.status_code}: {resp.reason}"
+                except Exception as json_e:
+                    logging.error(f"Error parsing response JSON: {json_e}")
+                    # Fallback to the original exception string if JSON parsing fails
+                    desc = str(e)
+
             self.submission_finished.emit(False, desc)
         except ValueError:
             msg = "Invalid message_thread_id; must be integer."
