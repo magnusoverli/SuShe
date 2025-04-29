@@ -1,7 +1,7 @@
 # delegates.py
 
 from PyQt6.QtWidgets import (
-    QStyledItemDelegate, QComboBox, QCompleter, QLabel, QStyle, QApplication,
+    QStyledItemDelegate, QComboBox, QCompleter, QStyle, QApplication,
     QWidget
 )
 from PyQt6.QtGui import QPalette, QColor, QPolygon, QImage, QPixmap

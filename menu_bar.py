@@ -1,6 +1,6 @@
 # menu_bar.py
 
-from PyQt6.QtWidgets import QMenuBar, QMenu, QSizePolicy
+from PyQt6.QtWidgets import QMenuBar, QMenu
 
 class MenuBar:
     def __init__(self, main_window):

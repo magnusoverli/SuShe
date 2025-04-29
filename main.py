@@ -1,7 +1,7 @@
 # main.py
 
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QTableWidgetItem, QMessageBox,
+                             QLineEdit, QPushButton, QListWidget, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle)
 from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
 from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint, QParallelAnimationGroup, QAbstractAnimation, QPropertyAnimation, QEasingCurve)
