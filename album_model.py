@@ -36,7 +36,7 @@ class AlbumModel(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()):
         return len(self.COLUMN_NAMES)
     
-    def headerData(self, section, orientation, role):
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
                 return self.COLUMN_NAMES[section]
@@ -45,7 +45,7 @@ class AlbumModel(QAbstractTableModel):
                 return str(section + 1)
         return QVariant()
     
-    def data(self, index, role):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return QVariant()
         
@@ -133,7 +133,7 @@ class AlbumModel(QAbstractTableModel):
         return mime_data
     
     def canDropMimeData(self, data, action, row, column, parent):
-        if not data.hasFormat("application/x-sushe-albumrow"):
+        if data is None or not data.hasFormat("application/x-sushe-albumrow"):
             return False
         
         if action == Qt.DropAction.IgnoreAction:
@@ -147,17 +147,20 @@ class AlbumModel(QAbstractTableModel):
         
         if action == Qt.DropAction.IgnoreAction:
             return True
-        
+    
         # Get the drop row
         drop_row = row
         if drop_row == -1 and parent.isValid():
             drop_row = parent.row()
         elif drop_row == -1:
             drop_row = self.rowCount()
-        
+    
+        if data is None:
+            return False
+    
         encoded_data = data.data("application/x-sushe-albumrow")
         stream = QDataStream(encoded_data, QIODevice.OpenModeFlag.ReadOnly)
-        
+    
         # Get number of rows being moved
         rows_count = stream.readInt()
         source_rows = []
@@ -192,7 +195,7 @@ class AlbumModel(QAbstractTableModel):
         
         return True
     
-    def sort(self, column, order):
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
         """Sort album data by the specified column."""
         self.beginResetModel()
         
@@ -260,11 +263,3 @@ class AlbumModel(QAbstractTableModel):
             self.is_modified = True
             return True
         return False
-    
-    def clear(self):
-        """Clear all album data."""
-        self.beginResetModel()
-        self.album_data = []
-        self.endResetModel()
-        self.is_modified = False
-        return True

@@ -1,6 +1,6 @@
 # menu_bar.py
 
-from PyQt6.QtWidgets import QMenuBar, QSizePolicy
+from PyQt6.QtWidgets import QMenuBar, QMenu, QSizePolicy
 
 class MenuBar:
     def __init__(self, main_window):
@@ -9,12 +9,14 @@ class MenuBar:
 
     def setup_menu_bar(self):
         # Create a menu bar and ensure it fills the width
-        bar = QMenuBar(self.main_window)
+        bar = QMenuBar()
+        bar.setParent(self.main_window)
         bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.main_window.setMenuBar(bar)
+        self.main_window.layout().addWidget(bar)
 
         # File menu
-        file_menu = bar.addMenu("File")
+        file_menu = QMenu("File", bar)
+        bar.addMenu(file_menu)
         
         open_action = self.main_window.create_action(
             "Open", "Ctrl+O", triggered=self.main_window.trigger_load_album_data

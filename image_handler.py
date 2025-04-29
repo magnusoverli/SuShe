@@ -27,8 +27,8 @@ class ImageProcessor(QObject):
             # Open and resize the image
             image = Image.open(BytesIO(self.image_data))
             image = image.convert("RGB") if self.format in ["JPEG", "WEBP"] else image  # Ensure compatibility
-            image = image.resize(self.size, Image.LANCZOS)
-            
+            image = image.resize(self.size, Image.Resampling.LANCZOS)
+
             # Save to bytes with optimization
             buffered = BytesIO()
             if self.format == "JPEG":
@@ -165,11 +165,11 @@ class ImageWidget(QWidget):
         self.original_pixmap = pixmap
         self.updateScaledPixmap()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, a0):
         """
         Overrides the resize event to update the pixmap scaling.
         """
-        super().resizeEvent(event)
+        super().resizeEvent(a0)
         self.updateScaledPixmap()
 
     def updateScaledPixmap(self):

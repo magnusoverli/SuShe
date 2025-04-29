@@ -1,8 +1,8 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QEvent
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QLineEdit, QTextEdit, QComboBox, 
-                            QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter, QListWidget)
+                            QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter, QListWidget, QTextBrowser)
 import logging
 import os
 import requests
@@ -18,15 +18,25 @@ class EditableComboBox(QComboBox):
         self.setEditable(True)
         
         # Make the line edit in the combobox forward mouse events to the combobox
-        self.lineEdit().installEventFilter(self)
+        line_edit = self.lineEdit()
+        if line_edit:  # Check if line edit exists before installing filter
+            line_edit.installEventFilter(self)
+        else:
+            # If line edit isn't available immediately, connect to a signal that fires when it would be
+            def lineEdit_changed(self=self):
+                line_edit = self.lineEdit()
+                if line_edit:
+                    line_edit.installEventFilter(self)
+            self.lineEdit_changed = lineEdit_changed
+            self.currentIndexChanged.connect(self.lineEdit_changed)
         
-    def eventFilter(self, obj, event):
+    def eventFilter(self, a0, a1):
         """Filter events for the line edit to handle mouse clicks"""
-        if obj == self.lineEdit() and event.type() == event.Type.MouseButtonPress:
+        if a0 == self.lineEdit() and a1 is not None and a1.type() == QEvent.Type.MouseButtonPress:
             # When user clicks in the line edit area, show the dropdown
             self.showPopup()
             return True
-        return super().eventFilter(obj, event)
+        return super().eventFilter(a0, a1)
 
 
 class ManualAddAlbumDialog(QDialog):
@@ -35,7 +45,7 @@ class ManualAddAlbumDialog(QDialog):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.parent = parent
+        self._parent = parent
         self.setWindowTitle("Add Album Manually")
         self.setMinimumWidth(600)
         self.setMinimumHeight(500)
@@ -200,27 +210,34 @@ class ManualAddAlbumDialog(QDialog):
         
         # Country dropdown
         self.country_combo = QComboBox(self)
-        self.country_combo.addItems(self.parent.countries)
+        # Use default empty list if parent doesn't have countries attribute
+        countries = getattr(self._parent, 'countries', []) if self._parent else []
+        self.country_combo.addItems(countries)
         self.country_combo.setMinimumHeight(36)
         classification_form.addRow("Country:", self.country_combo)
         
         # Genre 1 dropdown - using our custom EditableComboBox
         self.genre1_combo = EditableComboBox(self)
-        self.genre1_combo.addItems(self.parent.genres)
+        # Use default empty list if parent doesn't have genres attribute
+        genres = getattr(self._parent, 'genres', []) if self._parent else []
+        self.genre1_combo.addItems(genres)
         self.genre1_combo.setMinimumHeight(36)
         # Add completer for better search
-        completer1 = QCompleter(self.parent.genres, self.genre1_combo)
+        completer1 = QCompleter(genres, self.genre1_combo)
         completer1.setFilterMode(Qt.MatchFlag.MatchContains)
-        completer1.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.genre1_combo.setCompleter(completer1)
-        classification_form.addRow("Genre 1:", self.genre1_combo)
+        # Genre 2 dropdown - using our custom EditableComboBox
+        self.genre2_combo = EditableComboBox(self)
+        # Use default empty list if parent doesn't have genres attribute
+        genres = getattr(self._parent, 'genres', []) if self._parent else []
+        self.genre2_combo.addItems(genres)
         
         # Genre 2 dropdown - using our custom EditableComboBox
         self.genre2_combo = EditableComboBox(self)
-        self.genre2_combo.addItems(self.parent.genres)
+        genres2 = getattr(self._parent, 'genres', []) if self._parent else []
+        self.genre2_combo.addItems(genres2)
         self.genre2_combo.setMinimumHeight(36)
         # Add completer for better search
-        completer2 = QCompleter(self.parent.genres, self.genre2_combo)
+        completer2 = QCompleter(genres2, self.genre2_combo)
         completer2.setFilterMode(Qt.MatchFlag.MatchContains)
         completer2.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.genre2_combo.setCompleter(completer2)
@@ -274,7 +291,7 @@ class ManualAddAlbumDialog(QDialog):
         # Set focus on artist input
         self.artist_input.setFocus()
     
-    def image_preview_clicked(self, event):
+    def image_preview_clicked(self, ev):
         """Handle clicks on the image preview area to open file dialog."""
         self.select_cover_image()
         
@@ -316,8 +333,11 @@ class ManualAddAlbumDialog(QDialog):
         date_str = self.release_date_input.text().strip()
         if not date_str:  # Skip validation if empty
             self.release_date_input.setProperty("valid", None)
-            self.release_date_input.style().unpolish(self.release_date_input)
-            self.release_date_input.style().polish(self.release_date_input)
+            # Get style and check if it's not None before using it
+            style = self.release_date_input.style()
+            if style:
+                style.unpolish(self.release_date_input)
+                style.polish(self.release_date_input)
             return
             
         is_valid, formatted_date = self._parse_and_format_date(date_str)
@@ -332,8 +352,10 @@ class ManualAddAlbumDialog(QDialog):
             self.release_date_input.setProperty("valid", False)
         
         # Force style refresh
-        self.release_date_input.style().unpolish(self.release_date_input)
-        self.release_date_input.style().polish(self.release_date_input)
+        style = self.release_date_input.style()
+        if style:
+            style.unpolish(self.release_date_input)
+            style.polish(self.release_date_input)
         
     def _parse_and_format_date(self, date_str):
         """
@@ -459,11 +481,15 @@ class ManualAddAlbumDialog(QDialog):
         genre2 = self.genre2_combo.currentText()
         comments = self.comments_input.toPlainText()
         
-        # Add the album to the parent's table
-        self.parent.add_manual_album_to_table(
-            artist, album, release_date, self.cover_image_path,
-            country, genre1, genre2, comments
-        )
+        # Add the album to the parent's table if parent exists and has the method
+        if self._parent and hasattr(self._parent, 'add_manual_album_to_table'):
+            self._parent.add_manual_album_to_table(
+                artist, album, release_date, self.cover_image_path,
+                country, genre1, genre2, comments
+            )
+        else:
+            logging.warning("Cannot add album: Parent object missing or doesn't have 'add_manual_album_to_table' method")
+            QMessageBox.warning(self, "Error", "Cannot add the album due to an internal error.")
         
         # Close the dialog
         super().accept()
