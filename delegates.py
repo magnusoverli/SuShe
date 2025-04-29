@@ -1,7 +1,7 @@
 # delegates.py
 
 from PyQt6.QtWidgets import (
-    QStyledItemDelegate, QComboBox, QCompleter, QLabel, QStyle
+    QStyledItemDelegate, QComboBox, QCompleter, QLabel, QStyle, QApplication
 )
 from PyQt6.QtGui import QPalette, QColor, QPolygon, QImage, QPixmap
 from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPoint
@@ -32,6 +32,9 @@ class CoverImageDelegate(QStyledItemDelegate):
         super().__init__(parent)
         
     def paint(self, painter, option, index):
+        if not painter:
+            return
+            
         base64_image = index.data(Qt.ItemDataRole.UserRole)
         if base64_image:
             try:
@@ -41,11 +44,17 @@ class CoverImageDelegate(QStyledItemDelegate):
                 rect = option.rect
                 
                 # Draw the background
-                parent = self.parent()
-                if parent:
-                    parent.style().drawPrimitive(
-                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+                style = QApplication.style()
+                if style:
+                    style.drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
                     )
+                else:
+                    # Fallback when style is None
+                    if option.state & QStyle.StateFlag.State_Selected:
+                        painter.fillRect(option.rect, option.palette.highlight())
+                    else:
+                        painter.fillRect(option.rect, option.palette.base())
                 
                 # Decode the base64 image
                 image_bytes = base64.b64decode(base64_image)
@@ -65,21 +74,40 @@ class CoverImageDelegate(QStyledItemDelegate):
                 
                 # Draw the pixmap
                 painter.drawPixmap(x, y, scaled_pixmap)
+                painter.restore()
+            except Exception:
+                # Draw "No Image" placeholder
+                painter.save()
+                style = QApplication.style()
+                if style:
+                    style.drawPrimitive(
+                        QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
+                    )
+                else:
+                    # Fallback when style is None
+                    if option.state & QStyle.StateFlag.State_Selected:
+                        painter.fillRect(option.rect, option.palette.highlight())
+                    else:
+                        painter.fillRect(option.rect, option.palette.base())
                 
-            except Exception as e:
-                logging.error(f"Error in CoverImageDelegate.paint: {e}")
-                painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, "Image Error")
-            finally:
+                # Draw "No Image" placeholder
+                painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, "No Image")
                 painter.restore()
         else:
             # Draw "No Image" placeholder
             painter.save()
-            parent = self.parent()
-            if parent:
-                parent.style().drawPrimitive(
-                    QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, parent
+            style = QApplication.style()
+            if style:
+                style.drawPrimitive(
+                    QStyle.PrimitiveElement.PE_PanelItemViewItem, option, painter, None
                 )
-            painter.setPen(option.palette.color(QPalette.ColorRole.WindowText))
+            else:
+                # Fallback when style is None
+                if option.state & QStyle.StateFlag.State_Selected:
+                    painter.fillRect(option.rect, option.palette.highlight())
+                else:
+                    painter.fillRect(option.rect, option.palette.base())
+            
             painter.drawText(option.rect, Qt.AlignmentFlag.AlignCenter, "No Image")
             painter.restore()
 
@@ -104,12 +132,17 @@ class ComboBoxDelegate(QStyledItemDelegate):
         comboBox.setCompleter(completer)
 
         # Apply consistent styling to dropdown and completer
-        completer.popup().setStyleSheet("background-color: #282828; color: white; padding: 4px;")
+        popup = completer.popup()
+        if popup:
+            popup.setStyleSheet("background-color: #282828; color: white; padding: 4px;")
         comboBox.setStyleSheet("background-color: #333333; color: white; padding: 4px;")
 
         return comboBox
 
     def paint(self, painter, option, index):
+        if not painter:
+            return
+            
         try:
             painter.save()
             
@@ -166,25 +199,39 @@ class ComboBoxDelegate(QStyledItemDelegate):
 
     def setEditorData(self, editor, index):
         """Sets the editor's current value based on the model's data."""
-        value = index.model().data(index, Qt.ItemDataRole.EditRole)
+        if not isinstance(editor, QComboBox):
+            return
+            
+        model = index.model()
+        if model is None:
+            return
+            
+        value = model.data(index, Qt.ItemDataRole.EditRole)
         if value:
             idx = editor.findText(value, Qt.MatchFlag.MatchFixedString)
             editor.setCurrentIndex(idx if idx >= 0 else -1)
-        else:
-            editor.setCurrentIndex(-1)  # No selection if no value
-
     def setModelData(self, editor, model, index):
         """Updates the model with the editor's current value."""
+        if not isinstance(editor, QComboBox):
+            return
+            
+        if model is None:
+            return
+            
         new_value = editor.currentText().strip()
         
         # Only update if the value actually changed
         current_value = model.data(index, Qt.ItemDataRole.EditRole)
         if new_value != current_value:
             model.setData(index, new_value, Qt.ItemDataRole.EditRole)
+        current_value = model.data(index, Qt.ItemDataRole.EditRole)
+        if new_value != current_value:
+            model.setData(index, new_value, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
         """Sets the editor's geometry to match cell dimensions."""
-        editor.setGeometry(option.rect)
+        if editor:
+            editor.setGeometry(option.rect)
 
 class SearchHighlightDelegate(QStyledItemDelegate):
     """
@@ -223,13 +270,15 @@ class SearchHighlightDelegate(QStyledItemDelegate):
                 # If there's a widget, don't draw any text - let the widget handle it
                 return  # No explicit restore here - the finally block will handle it
 
-            # Get the cell text
+            # Get the cell text from the model data
             data = index.data(Qt.ItemDataRole.DisplayRole)
-            if not data:
-                # For backward compatibility, try the old method
-                widget = parent.cellWidget(index.row(), index.column())
-                if isinstance(widget, QLabel):
-                    data = strip_html_tags(widget.text())
+            
+            # We no longer need the backward compatibility code that uses cellWidget
+            # This was causing the error:
+            # if not data:
+            #     widget = parent.cellWidget(index.row(), index.column())
+            #     if isinstance(widget, QLabel):
+            #         data = strip_html_tags(widget.text())
 
             if data:
                 data_lower = str(data).lower()
@@ -311,9 +360,9 @@ class GenreSearchDelegate(QStyledItemDelegate):
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         comboBox.setCompleter(completer)
-
-        # Apply the dark background style to the completer popup
-        completer.popup().setStyleSheet("background-color: #2D2D30; color: white;")
+        popup = completer.popup()
+        if popup:
+            popup.setStyleSheet("background-color: #2D2D30; color: white;")
         comboBox.setStyleSheet("background-color: #2D2D30; color: white;")
 
         return comboBox
@@ -322,7 +371,14 @@ class GenreSearchDelegate(QStyledItemDelegate):
         """
         Sets the editor's current value based on the model's data.
         """
-        value = index.model().data(index, Qt.ItemDataRole.EditRole)
+        if not isinstance(editor, QComboBox):
+            return
+            
+        model = index.model()
+        if model is None:
+            return
+            
+        value = model.data(index, Qt.ItemDataRole.EditRole)
         if not value:
             return
             
@@ -333,18 +389,24 @@ class GenreSearchDelegate(QStyledItemDelegate):
         """
         Updates the model with the editor's current value.
         """
+        if not isinstance(editor, QComboBox):
+            return
+            
+        if model is None:
+            return
+            
         new_value = editor.currentText().strip()
         
         # Only update if the value actually changed
         current_value = model.data(index, Qt.ItemDataRole.EditRole)
         if new_value != current_value:
             model.setData(index, new_value, Qt.ItemDataRole.EditRole)
-
     def updateEditorGeometry(self, editor, option, index):
         """
         Sets the editor's geometry.
         """
-        editor.setGeometry(option.rect)
+        if editor:
+            editor.setGeometry(option.rect)
 
     def paint(self, painter, option, index):
         try:
