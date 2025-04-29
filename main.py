@@ -293,10 +293,18 @@ class DragDropTableView(QTableView):
             row_rect.setWidth(visible_width)
 
             # Grab just the visible part of the row
-            row_pixmap = self.viewport().grab(row_rect)
+            viewport = self.viewport()
+            if viewport:
+                row_pixmap = viewport.grab(row_rect)
+                # Draw onto our drag pixmap
+                target_y = i * row_height
+                painter.drawPixmap(0, target_y, row_pixmap)
+            else:
+                logging.warning(f"Skipping row {row} during drag pixmap creation: Viewport is not available.")
+                continue # Skip this row if viewport is not available
 
             # Draw onto our drag pixmap
-            target_y = i * row_height
+            # target_y = i * row_height # Moved inside the 'if viewport' block
             painter.drawPixmap(0, target_y, row_pixmap)
 
         painter.end()
@@ -351,19 +359,23 @@ class DragDropTableView(QTableView):
         
         if row == -1:
             # If no row at position, determine if we're above first row or below last row
-            if self.model().rowCount() > 0:
-                first_row_rect = self.visualRect(self.model().index(0, 0))
-                last_row_rect = self.visualRect(self.model().index(self.model().rowCount()-1, 0))
+            model = self.model()
+            if model is not None and model.rowCount() > 0:
+                first_row_rect = self.visualRect(model.index(0, 0))
+                last_row_rect = self.visualRect(model.index(model.rowCount()-1, 0))
                 
                 if y_position < first_row_rect.top():
                     drop_row = 0
                 else:
-                    drop_row = self.model().rowCount()
+                    drop_row = model.rowCount()
             else:
                 drop_row = 0
         else:
             # Get the rectangle for the current row
-            row_rect = self.visualRect(self.model().index(row, 0))
+            model = self.model()
+            if not model:
+                return
+            row_rect = self.visualRect(model.index(row, 0))
             
             # If cursor is in the top half of the row, place above; otherwise, below
             if y_position < (row_rect.top() + row_rect.height() / 2):
@@ -376,7 +388,10 @@ class DragDropTableView(QTableView):
             self.current_drop_row = drop_row
             
             # Create a new arrangement of the data
-            current_data = self.original_data.copy()
+            if self.original_data is not None:
+                current_data = self.original_data.copy()
+            else:
+                current_data = []
             
             # Extract the dragged items
             dragged_items = [current_data[i] for i in self.dragged_rows]
