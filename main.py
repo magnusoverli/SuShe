@@ -39,7 +39,24 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 def setup_logging():
     # Define the logs directory within the user's application data folder
     app_name = 'SuSheApp'
-    log_dir = os.path.join(os.getenv('APPDATA'), app_name, 'logs')
+
+    # Determine the base directory for application data based on OS
+    if sys.platform == 'win32':
+        base_dir = os.getenv('APPDATA')
+        if base_dir is None:
+            # Fallback if APPDATA is not set (unlikely on Windows, but good practice)
+            base_dir = os.path.expanduser('~')
+            print("Warning: APPDATA environment variable not found. Using home directory for logs.") # Use print initially as logging might not be set up
+        app_data_base_dir = os.path.join(base_dir, app_name)
+    elif sys.platform == 'darwin':
+        # Use standard macOS Application Support directory
+        app_data_base_dir = os.path.join(os.path.expanduser('~/Library/Application Support/'), app_name)
+    else:  # Linux and other Unix-like OSes
+        # Use standard XDG Base Directory Specification if possible, fallback to ~/.config
+        xdg_config_home = os.getenv('XDG_CONFIG_HOME', os.path.join(os.path.expanduser('~'), '.config'))
+        app_data_base_dir = os.path.join(xdg_config_home, app_name)
+
+    log_dir = os.path.join(app_data_base_dir, 'logs')
 
     os.makedirs(log_dir, exist_ok=True)  # Create the directory if it doesn't exist
 
@@ -69,10 +86,20 @@ def setup_logging():
     return text_edit_logger
 
 def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
+        # Check if running in a PyInstaller bundle
+        if hasattr(sys, '_MEIPASS'):
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            # Access the attribute safely now that we know it exists
+            base_path = getattr(sys, '_MEIPASS')
+        else:
+            # Not running in a bundle, use the current directory
+            base_path = os.path.abspath(".")
+    except Exception as e:
+        # Handle other potential exceptions during path resolution
+        logging.error(f"Unexpected error getting base path: {e}")
+        base_path = os.path.abspath(".") # Fallback
     return os.path.join(base_path, relative_path)
 
 def read_file_lines(filepath, transform=None):
@@ -96,8 +123,12 @@ class DragDropTableView(QTableView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setShowGrid(True)
-        self.horizontalHeader().setHighlightSections(False)
-        self.verticalHeader().setHighlightSections(False)
+        h_header = self.horizontalHeader()
+        if h_header:
+            h_header.setHighlightSections(False)
+        v_header = self.verticalHeader()
+        if v_header:
+            v_header.setHighlightSections(False)
         
         # States for drag operation
         self.drag_active = False
@@ -121,28 +152,38 @@ class DragDropTableView(QTableView):
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         
         # Set a consistent row height
-        self.verticalHeader().setDefaultSectionSize(100)
+        v_header = self.verticalHeader()
+        if v_header:
+            v_header.setDefaultSectionSize(100)
         
         # Enable smooth scrolling
         self.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         
         # Enable item tracking for smoother animations
-        self.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        viewport = self.viewport()
+        if viewport:
+            viewport.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         
         # Add visual feedback when hovering over rows
         self.setMouseTracking(True)
 
     # Override paintEvent to add custom hover highlighting
-    def paintEvent(self, event):
-        super().paintEvent(event)
+    def paintEvent(self, e):
+        super().paintEvent(e)
         
         # Add subtle hover effect for the entire row
         if hasattr(self, 'hover_row') and self.hover_row >= 0:
             # Only apply hover if not dragging and not on selected row
-            if not self.drag_active and not self.selectionModel().isRowSelected(self.hover_row, self.rootIndex()):
-                rect = self.visualRect(self.model().index(self.hover_row, 0))
-                rect.setWidth(self.viewport().width())
+            sel_model = self.selectionModel()
+            if not self.drag_active and sel_model and not sel_model.isRowSelected(self.hover_row, self.rootIndex()):
+                model = self.model()
+                if model is None:
+                    return
+                rect = self.visualRect(model.index(self.hover_row, 0))
+                vp = self.viewport()
+                if vp:
+                    rect.setWidth(vp.width())
                 rect.setHeight(self.rowHeight(self.hover_row))
                 
                 painter = QPainter(self.viewport())
@@ -153,9 +194,9 @@ class DragDropTableView(QTableView):
                 painter.end()
 
     # Add event to track mouse position for hover effects
-    def mouseMoveEvent(self, event):
-        super().mouseMoveEvent(event)
-        index = self.indexAt(event.position().toPoint())
+    def mouseMoveEvent(self, e):
+        super().mouseMoveEvent(e)
+        index = self.indexAt(e.position().toPoint())
         if index.isValid():
             self.hover_row = index.row()
             self.viewport().update()
