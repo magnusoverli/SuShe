@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, 
                              QLineEdit, QPushButton, QListWidget, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle)
 from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
-from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint, QParallelAnimationGroup, QAbstractAnimation, QPropertyAnimation, QEasingCurve)
+from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint, QParallelAnimationGroup,
+                          QAbstractAnimation, QPropertyAnimation, QEasingCurve, QRect)
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -137,6 +138,7 @@ class DragDropTableView(QTableView):
         self.current_drop_row = -1
         self.hover_row = -1
         self.dropped_rows = []
+        self.drag_pending = False  # New flag to track mouse press before drag starts
         
         # Animation properties
         self.row_animations = {}  # Store animations by row index
@@ -163,10 +165,13 @@ class DragDropTableView(QTableView):
         # Enable item tracking for smoother animations
         viewport = self.viewport()
         if viewport:
-            viewport.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+            viewport.setAttribute(Qt.WidgetAttribute.WA_Hover, False)  # Disable Qt's built-in hover
         
         # Add visual feedback when hovering over rows
         self.setMouseTracking(True)
+        
+        # Disable stylesheet hover effects
+        self.setStyleSheet("QTableView::item:hover { background-color: transparent; }")
 
     # Override paintEvent to add custom hover highlighting
     def paintEvent(self, e):
@@ -193,10 +198,14 @@ class DragDropTableView(QTableView):
                 painter.drawRect(rect)
                 painter.end()
 
-    # Add event to track mouse position for hover effects
     def mouseMoveEvent(self, e):
         super().mouseMoveEvent(e)
         if e is None:
+            return
+        
+        # Skip hover tracking completely if dragging is active
+        if self.drag_active:
+            self.hover_row = -1  # Clear hover state
             return
             
         try:
@@ -247,66 +256,143 @@ class DragDropTableView(QTableView):
         drag.setMimeData(mime_data)
         
         # Determine the mouse position when the drag started
-        # This is usually stored in the event that triggered the drag, but we don't have access to it
-        # So we'll use the current cursor position relative to the viewport
         viewport = self.viewport()
         if not viewport:
             logging.error("Cannot start drag: Viewport is not available.")
-            return # Cannot proceed without a viewport
+            return
         mouse_pos = viewport.mapFromGlobal(QCursor.pos())
         
-        # Calculate the visible portion of the table
+        # Calculate visible dimensions
         visible_rect = viewport.rect()
-        
-        # Create a pixmap the size of the visible rows being dragged
         first_row = self.dragged_rows[0]
         row_height = self.rowHeight(first_row)
         visible_width = visible_rect.width()
         pixmap_height = len(self.dragged_rows) * row_height
         
-        # Create the pixmap
+        # Create the drag representation pixmap
         pixmap = QPixmap(visible_width, pixmap_height)
         pixmap.fill(Qt.GlobalColor.transparent)
-
-        # Calculate the hotspot relative to the first row
-        first_row_index = model.index(first_row, 0) # Use the checked 'model' variable
+        
+        # Calculate hotspot
+        first_row_index = model.index(first_row, 0)
         if not first_row_index.isValid():
             logging.error(f"Cannot calculate hotspot: Invalid index for first row {first_row}.")
-            return # Cannot proceed with invalid index
+            return
         first_row_rect = self.visualRect(first_row_index)
         hotspot_x = mouse_pos.x()
         hotspot_y = mouse_pos.y() - first_row_rect.y()
-
+        
         # Create a painter for the pixmap
         painter = QPainter(pixmap)
-        painter.setOpacity(0.7)  # Semi-transparent
-
-        # Render each selected row into the pixmap
+        # Enable rendering hints for higher quality
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        
+        # The base opacity for the dragged item
+        painter.setOpacity(0.25)
+        
+        # Render each selected row
         for i, row in enumerate(self.dragged_rows):
-            # Get the visible part of the row
-            row_index = model.index(row, 0) # Use the checked 'model' variable
-            if not row_index.isValid():
-                logging.warning(f"Skipping invalid index for row {row} during drag pixmap creation.")
-                continue
-            row_rect = self.visualRect(row_index)
-            row_rect.setLeft(visible_rect.left())
-            row_rect.setWidth(visible_width)
-
-            # Grab just the visible part of the row
-            viewport = self.viewport()
-            if viewport:
-                row_pixmap = viewport.grab(row_rect)
-                # Draw onto our drag pixmap
-                target_y = i * row_height
-                painter.drawPixmap(0, target_y, row_pixmap)
+            # Set target position for this row
+            target_y = i * row_height
+            
+            # Create a background for the row with a slightly tinted color
+            if row % 2 == 0:
+                painter.setBrush(QColor(30, 30, 30, 200))  # Slightly transparent dark gray
             else:
-                logging.warning(f"Skipping row {row} during drag pixmap creation: Viewport is not available.")
-                continue # Skip this row if viewport is not available
-
-            # Draw onto our drag pixmap
-            # target_y = i * row_height # Moved inside the 'if viewport' block
-            painter.drawPixmap(0, target_y, row_pixmap)
-
+                painter.setBrush(QColor(40, 40, 40, 200))  # Slightly lighter transparent gray
+            painter.setPen(QPen(QColor(60, 60, 60, 150), 1))  # Subtle border
+            painter.drawRoundedRect(2, target_y + 2, visible_width - 4, row_height - 4, 3, 3)  # Rounded corners
+            
+            # Now draw each cell's content separately for better control
+            
+            # 1. Cover Image
+            cover_column = AlbumModel.COVER_IMAGE
+            cover_index = model.index(row, cover_column)
+            cover_rect = self.visualRect(cover_index)
+            
+            # Draw cover image if available
+            base64_image = model.data(cover_index, Qt.ItemDataRole.UserRole)
+            if base64_image:
+                try:
+                    # Decode and create the image
+                    import base64
+                    from PyQt6.QtGui import QImage
+                    
+                    image_bytes = base64.b64decode(base64_image)
+                    image = QImage.fromData(image_bytes)
+                    cover_pixmap = QPixmap.fromImage(image)
+                    
+                    # Calculate image rect with some padding
+                    img_x = cover_rect.x() + 5
+                    img_y = target_y + 5
+                    img_width = cover_rect.width() - 10
+                    img_height = row_height - 10
+                    
+                    # Scale image while maintaining aspect ratio
+                    scaled_pixmap = cover_pixmap.scaled(
+                        img_width, img_height, 
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    
+                    # Center the scaled image in its cell
+                    img_x = cover_rect.x() + (cover_rect.width() - scaled_pixmap.width()) // 2
+                    img_y = target_y + (row_height - scaled_pixmap.height()) // 2
+                    
+                    # Draw the cover with specified opacity
+                    painter.drawPixmap(img_x, img_y, scaled_pixmap)
+                except Exception as e:
+                    logging.error(f"Error rendering cover image in drag: {e}")
+            
+            # 2. Artist Name
+            artist_column = AlbumModel.ARTIST
+            artist_index = model.index(row, artist_column)
+            artist_rect = self.visualRect(artist_index)
+            artist_name = model.data(artist_index, Qt.ItemDataRole.DisplayRole) or ""
+            
+            # Draw artist name with improved text rendering
+            painter.setPen(QColor(255, 255, 255, 230))  # Almost white, slightly transparent
+            font = painter.font()
+            font.setBold(True)
+            font.setPointSize(10)  # Explicitly set font size for clarity
+            painter.setFont(font)
+            
+            # Adjust the position to match the table's layout
+            text_rect = QRect(
+                artist_rect.x() + 8,  # Add some padding
+                target_y, 
+                artist_rect.width() - 16,  # Account for padding
+                row_height
+            )
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, artist_name)
+            
+            # 3. Album Name
+            album_column = AlbumModel.ALBUM
+            album_index = model.index(row, album_column)
+            album_rect = self.visualRect(album_index)
+            album_name = model.data(album_index, Qt.ItemDataRole.DisplayRole) or ""
+            
+            # Draw album name
+            painter.setPen(QColor(220, 220, 220, 230))  # Slightly off-white
+            font.setBold(False)
+            painter.setFont(font)
+            
+            text_rect = QRect(
+                album_rect.x() + 8,
+                target_y,
+                album_rect.width() - 16,
+                row_height
+            )
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, album_name)
+        
+        # Add a subtle drop shadow effect to show the item is being dragged
+        painter.setOpacity(0.3)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 100))
+        painter.drawRoundedRect(4, pixmap_height - 6, visible_width - 8, 12, 6, 6)
+        
         painter.end()
         
         # Set the drag pixmap with the calculated hotspot
@@ -320,9 +406,20 @@ class DragDropTableView(QTableView):
         self.drag_active = False
 
     def dragEnterEvent(self, event):
+        if event is None:
+            logging.warning("dragEnterEvent received a None event.")
+            return # Ignore the event if it's None
+
         if event.mimeData().hasFormat("application/x-sushe-albumrow"):
             # Store the current state of the model
             self.drag_active = True
+            self.hover_row = -1  # Clear hover state when drag starts
+            
+            # Force viewport update to remove any hover effects immediately
+            viewport = self.viewport()
+            if viewport:
+                viewport.update()
+                
             self.dragged_rows = sorted([index.row() for index in self.selectedIndexes() if index.column() == 0])
 
             model = self.model()
@@ -345,6 +442,7 @@ class DragDropTableView(QTableView):
             self.dragged_rows = []
             self.original_data = None
             self.current_drop_row = -1
+            self.hover_row = -1  # Ensure hover is reset
         
         super().dragLeaveEvent(event)
 
@@ -433,10 +531,16 @@ class DragDropTableView(QTableView):
             
             # Reset hover row
             self.hover_row = -1
-            self.viewport().update()
+            
+            # Force update to clear any hover effects
+            viewport = self.viewport()
+            if viewport:
+                viewport.update()
             
             # Update vertical header to reflect new order
-            self.verticalHeader().update()
+            v_header = self.verticalHeader()
+            if v_header:
+                v_header.update()
             
             event.acceptProposedAction()
         else:
@@ -528,29 +632,6 @@ class DragDropTableView(QTableView):
     def sizeHintForColumn(self, column):
         """Return the width that was set for this column."""
         return self.columnWidth(column)
-
-class DropIndicatorStyle(QProxyStyle):
-    """
-    Custom style to enhance drop indicator appearance.
-    """
-    def drawPrimitive(self, element, option, painter, widget=None):
-        # Customize the drop indicator
-        if element == QStyle.PrimitiveElement.PE_IndicatorItemViewItemDrop:
-            pen = QPen(QColor("#1DB954"), 2)  # Spotify green, thicker line
-            painter.setPen(pen)
-            
-            # Draw a more visible indicator line
-            if option.rect.height() == 0:
-                # This is a line drop indicator (between rows)
-                painter.drawLine(option.rect.topLeft(), option.rect.topRight())
-            else:
-                # This is a full rect indicator (on a row)
-                painter.drawRect(option.rect)
-                
-            return
-            
-        # Use the parent style for everything else
-        super().drawPrimitive(element, option, painter, widget)
 
 class QTextEditLogger(logging.Handler, QObject):
     log_signal = pyqtSignal(str)
@@ -1526,9 +1607,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Make sure horizontal scrolling is enabled if needed
         self.album_table.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
-        
-        # Apply the custom style for better drop indicators
-        self.album_table.setStyle(DropIndicatorStyle())
+
         
         # Enable editing with appropriate triggers
         self.album_table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | 
