@@ -249,10 +249,14 @@ class DragDropTableView(QTableView):
         # Determine the mouse position when the drag started
         # This is usually stored in the event that triggered the drag, but we don't have access to it
         # So we'll use the current cursor position relative to the viewport
-        mouse_pos = self.viewport().mapFromGlobal(QCursor.pos())
+        viewport = self.viewport()
+        if not viewport:
+            logging.error("Cannot start drag: Viewport is not available.")
+            return # Cannot proceed without a viewport
+        mouse_pos = viewport.mapFromGlobal(QCursor.pos())
         
         # Calculate the visible portion of the table
-        visible_rect = self.viewport().rect()
+        visible_rect = viewport.rect()
         
         # Create a pixmap the size of the visible rows being dragged
         first_row = self.dragged_rows[0]
@@ -263,31 +267,38 @@ class DragDropTableView(QTableView):
         # Create the pixmap
         pixmap = QPixmap(visible_width, pixmap_height)
         pixmap.fill(Qt.GlobalColor.transparent)
-        
+
         # Calculate the hotspot relative to the first row
-        first_row_rect = self.visualRect(self.model().index(first_row, 0))
+        first_row_index = model.index(first_row, 0) # Use the checked 'model' variable
+        if not first_row_index.isValid():
+            logging.error(f"Cannot calculate hotspot: Invalid index for first row {first_row}.")
+            return # Cannot proceed with invalid index
+        first_row_rect = self.visualRect(first_row_index)
         hotspot_x = mouse_pos.x()
         hotspot_y = mouse_pos.y() - first_row_rect.y()
-        
+
         # Create a painter for the pixmap
         painter = QPainter(pixmap)
         painter.setOpacity(0.7)  # Semi-transparent
-        
+
         # Render each selected row into the pixmap
         for i, row in enumerate(self.dragged_rows):
             # Get the visible part of the row
-            row_index = self.model().index(row, 0)
+            row_index = model.index(row, 0) # Use the checked 'model' variable
+            if not row_index.isValid():
+                logging.warning(f"Skipping invalid index for row {row} during drag pixmap creation.")
+                continue
             row_rect = self.visualRect(row_index)
             row_rect.setLeft(visible_rect.left())
             row_rect.setWidth(visible_width)
-            
+
             # Grab just the visible part of the row
             row_pixmap = self.viewport().grab(row_rect)
-            
+
             # Draw onto our drag pixmap
             target_y = i * row_height
             painter.drawPixmap(0, target_y, row_pixmap)
-        
+
         painter.end()
         
         # Set the drag pixmap with the calculated hotspot
@@ -305,11 +316,16 @@ class DragDropTableView(QTableView):
             # Store the current state of the model
             self.drag_active = True
             self.dragged_rows = sorted([index.row() for index in self.selectedIndexes() if index.column() == 0])
-            
-            # Make a deep copy of the current model data
-            self.original_data = self.model().get_album_data().copy()
-            
-            event.acceptProposedAction()
+
+            model = self.model()
+            # Check if the model is an instance of AlbumModel and not None
+            if isinstance(model, AlbumModel):
+                # Make a deep copy of the current model data
+                self.original_data = model.get_album_data().copy()
+                event.acceptProposedAction()
+            else:
+                logging.error("Drag enter event received, but the model is not a valid AlbumModel.")
+                event.ignore() # Ignore the event if the model is not correct
         else:
             super().dragEnterEvent(event)
 
@@ -1383,15 +1399,21 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.info("Album layout changed (reordering). Change state: %s", self.dataChanged)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.mimeData().hasUrls():  # Check if the drag event contains URLs
+        # First check if mimeData exists
+        mime_data = event.mimeData()
+        if mime_data and mime_data.hasUrls():  # Check if the drag event contains URLs
             event.acceptProposedAction()  # Accept the drag event
         else:
             event.ignore()  # Ignore the drag event if it does not contain URLs
 
     def dropEvent(self, event: QDropEvent):
-        urls = event.mimeData().urls()  # Extract URLs from the event
-        for url in urls:
-            self.process_spotify_uri(url.toString())  # Process each URL
+        mime_data = event.mimeData()
+        if mime_data and mime_data.hasUrls():
+            urls = mime_data.urls()  # Extract URLs from the event
+            for url in urls:
+                self.process_spotify_uri(url.toString())  # Process each URL
+        else:
+            logging.warning("Drop event occurred but no valid URLs found")
 
     def import_config(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -1558,7 +1580,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         """Set and lock column widths with proper header alignment."""
         # First, disable last section stretch to prevent automatic width adjustments
         header = self.album_table.horizontalHeader()
-        header.setStretchLastSection(False)
+        if header is not None:
+            header.setStretchLastSection(False)
+        else:
+            logging.error("Failed to get horizontal header - it returned None")
         
         # Set viewport margin to 0 to prevent offsets
         self.album_table.setViewportMargins(0, 0, 0, 0)
@@ -2477,7 +2502,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
                 # Resize the image before encoding
                 image = Image.open(BytesIO(image_data))
-                image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
+                image.thumbnail((200, 200), Image.Resampling.LANCZOS)
                 buffered = BytesIO()
                 image.save(buffered, format="PNG")
                 image_bytes = buffered.getvalue()
@@ -2739,7 +2764,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         context_menu = QMenu(self)
         remove_action = context_menu.addAction("Remove Album")
         open_album_action = context_menu.addAction("Open Album")
-        action = context_menu.exec(self.album_table.viewport().mapToGlobal(position))
+        
+        # Make sure viewport exists before calling mapToGlobal
+        viewport = self.album_table.viewport()
+        if viewport:
+            action = context_menu.exec(viewport.mapToGlobal(position))
+        else:
+            # Fallback to using the table widget's mapToGlobal directly
+            action = context_menu.exec(self.album_table.mapToGlobal(position))
 
         if action == remove_action:
             index = self.album_table.indexAt(position)
@@ -2756,14 +2788,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             if index.isValid():
                 row = index.row()
                 
-                # Try to get the URL from the widget first
+                        # Try to get the URL from the widget first
                 album_widget = self.album_table.indexWidget(self.album_model.index(row, AlbumModel.ALBUM))
-                if album_widget and hasattr(album_widget, 'album_url'):
-                    album_url = album_widget.album_url
-                else:
-                    # Fall back to constructing the URL
+                album_url = getattr(album_widget, 'album_url', None) # Safely get attribute
+
+                if not album_url:
+                    # Fall back to constructing the URL if widget or attribute is missing
                     album_id = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), 
-                                                Qt.ItemDataRole.UserRole)
+                                        Qt.ItemDataRole.UserRole)
                     artist_name = self.album_model.data(self.album_model.index(row, AlbumModel.ARTIST), 
                                                     Qt.ItemDataRole.DisplayRole)
                     album_name = self.album_model.data(self.album_model.index(row, AlbumModel.ALBUM), 
@@ -3119,7 +3151,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     
                 # Resize the image before encoding
                 image = Image.open(BytesIO(image_data))
-                image.thumbnail((200, 200), Image.LANCZOS)  # Resize while keeping aspect ratio
+                image.thumbnail((200, 200), Image.Resampling.LANCZOS)
                 buffered = BytesIO()
                 image.save(buffered, format=format)
                 image_bytes = buffered.getvalue()
