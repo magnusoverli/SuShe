@@ -2,10 +2,10 @@
 
 from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QListWidget, QMessageBox,
-                             QProgressDialog, QAbstractItemView, QHeaderView, QTableView, QStyle, QProxyStyle)
-from PyQt6.QtGui import QAction, QIcon, QPixmap, QDragEnterEvent, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
-from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint, QParallelAnimationGroup,
-                          QAbstractAnimation, QPropertyAnimation, QEasingCurve, QRect)
+                             QProgressDialog, QAbstractItemView, QHeaderView, QTableView,)
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
+from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint,
+                          QParallelAnimationGroup, QByteArray, QBuffer, QAbstractAnimation, QPropertyAnimation, QEasingCurve, QRect)
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
@@ -578,7 +578,7 @@ class DragDropTableView(QTableView):
         self.model().is_modified = was_modified  # Don't mark as modified during animations
         
         # Create animations from current positions to new positions
-        for row in range(self.model().rowCount()):
+        for row in range(model.rowCount()):
             # Skip rows that are being dragged
             if self.drag_active and row in self.dragged_rows:
                 continue
@@ -1494,7 +1494,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         app_name = 'SuSheApp'
 
         if sys.platform == 'win32':
-            app_data_dir = os.path.join(os.getenv('APPDATA'), app_name)
+            appdata = os.getenv('APPDATA')
+            if appdata is not None:
+                app_data_dir = os.path.join(appdata, app_name)
+            else:
+                app_data_dir = os.path.join(os.path.expanduser('~'), app_name)
         elif sys.platform == 'darwin':
             app_data_dir = os.path.join(os.path.expanduser('~/Library/Application Support/'), app_name)
         else:  # Linux and other Unix-like OSes
@@ -1515,23 +1519,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.dataChanged = self.album_model.is_modified
             self.update_window_title()
             logging.info("Album layout changed (reordering). Change state: %s", self.dataChanged)
-
-    def dragEnterEvent(self, event: QDragEnterEvent):
-        # First check if mimeData exists
-        mime_data = event.mimeData()
-        if mime_data and mime_data.hasUrls():  # Check if the drag event contains URLs
-            event.acceptProposedAction()  # Accept the drag event
-        else:
-            event.ignore()  # Ignore the drag event if it does not contain URLs
-
-    def dropEvent(self, event: QDropEvent):
-        mime_data = event.mimeData()
-        if mime_data and mime_data.hasUrls():
-            urls = mime_data.urls()  # Extract URLs from the event
-            for url in urls:
-                self.process_spotify_uri(url.toString())  # Process each URL
-        else:
-            logging.warning("Drop event occurred but no valid URLs found")
 
     def import_config(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -1628,17 +1615,23 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         # Configure header behavior
         header = self.album_table.horizontalHeader()
-        header.setSectionsClickable(False)  # Make header non-clickable
-        header.setHighlightSections(False)  # Don't highlight sections
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        if header is not None:
+            header.setSectionsClickable(False)  # Make header non-clickable
+            header.setHighlightSections(False)  # Don't highlight sections
+            header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        else:
+            logging.error("Failed to get horizontal header - it returned None")
         
         # Configure vertical header (row numbers)
         v_header = self.album_table.verticalHeader()
-        v_header.setDefaultSectionSize(100)  # Consistent row height
-        v_header.setVisible(self.show_positions)  # Set based on preference
-        v_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)  # Prevent resizing
-        v_header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the numbers
-        v_header.setMinimumWidth(30)  # Give enough space for double-digit numbers
+        if v_header:
+            v_header.setDefaultSectionSize(100)  # Consistent row height
+            v_header.setVisible(self.show_positions)  # Set based on preference
+            v_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)  # Prevent resizing
+            v_header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the numbers
+            v_header.setMinimumWidth(30)  # Give enough space for double-digit numbers
+        else:
+            logging.warning("Vertical header not available for album table.")
         v_header.setStyleSheet("""
             QHeaderView::section:vertical {
                 background-color: #1A1A1A;
@@ -2187,7 +2180,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             # Update links if player has changed
             if old_player != new_player and has_albums:
                 try:
-                    self.statusBar().showMessage(f"Updating album links for {new_player}...", 2000)
+                    status_bar = self.statusBar()
+                    if status_bar:
+                        status_bar.showMessage(f"Updating album links for {new_player}...", 2000)
+                    else:
+                        logging.info(f"Updating album links for {new_player}...")
                     self.update_album_links()
                 except Exception as e:
                     logging.error(f"Error updating album links: {e}")
@@ -2250,27 +2247,27 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                         
                         if isinstance(widget, QLabel):
                             # Update existing label to plain text
-                            widget.setText(album_name)  # No hyperlink formatting
+                            widget.setText(str(album_name))  # Convert to string, no hyperlink formatting
                             
                             # Keep the metadata for use by context menu
-                            widget.album_name = album_name
-                            widget.album_id = album_id
-                            widget.album_url = album_url  # Store the URL for context menu use
-                            widget.artist_name = artist_name
+                            widget.setProperty("album_name", album_name)
+                            widget.setProperty("album_id", album_id)
+                            widget.setProperty("album_url", album_url)  # Store the URL for context menu use
+                            widget.setProperty("artist_name", artist_name)
                             update_count += 1
                         else:
                             # Create a new label with plain text
-                            label = QLabel(album_name)  # No hyperlink formatting
+                            label = QLabel(str(album_name))  # Convert QVariant to string for QLabel
                             
                             # Style to match other text in the table
                             label.setStyleSheet("color: white; background: transparent;")
                             label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                             
                             # Store metadata for use by context menu
-                            label.album_name = album_name
-                            label.album_id = album_id
-                            label.album_url = album_url  # Store the URL for context menu use
-                            label.artist_name = artist_name
+                            label.setProperty("album_name", album_name)
+                            label.setProperty("album_id", album_id)
+                            label.setProperty("album_url", album_url)  # Store the URL for context menu use
+                            label.setProperty("artist_name", artist_name)
                             
                             # Use setIndexWidget to place the label in the cell
                             self.album_table.setIndexWidget(index, label)
@@ -2660,10 +2657,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 album_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 
                 # Store metadata for context menu use
-                album_label.album_name = album_name
-                album_label.album_id = album_id
-                album_label.artist_name = artist_name
-                album_label.album_url = self.get_album_url(album_id, artist_name, album_name)
+                album_label.setProperty("album_name", album_name)
+                album_label.setProperty("album_id", album_id)
+                album_label.setProperty("artist_name", artist_name)
+                album_label.setProperty("album_url", self.get_album_url(album_id, artist_name, album_name))
                 
                 # Set the label as the widget for the album cell
                 self.album_table.setIndexWidget(album_index, album_label)
@@ -2910,7 +2907,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 
                         # Try to get the URL from the widget first
                 album_widget = self.album_table.indexWidget(self.album_model.index(row, AlbumModel.ALBUM))
-                album_url = getattr(album_widget, 'album_url', None) # Safely get attribute
+                album_url = album_widget.property("album_url") if album_widget else None
 
                 if not album_url:
                     # Fall back to constructing the URL if widget or attribute is missing
@@ -2963,7 +2960,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.dataChanged = False
             logging.info(f"Data saved successfully to {self.current_file_path}. dataChanged set to False.")
             
-            self.statusBar().showMessage(f"Data saved to {self.current_file_path}.", 5000)
+            status_bar = self.statusBar()
+            if status_bar:  # Check if status bar exists
+                status_bar.showMessage(f"Data saved to {self.current_file_path}.", 5000)
             
             # Update last opened file and recent files
             self.update_recent_files(self.current_file_path)
@@ -3224,7 +3223,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.current_file_path = None
         self.update_window_title()
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         if self.dataChanged:
             reply = QMessageBox.question(
                 self, 'Unsaved Changes',
@@ -3236,11 +3235,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.trigger_save_album_data()
             elif reply == QMessageBox.StandardButton.Cancel:
                 logging.debug("User canceled the close event.")
-                event.ignore()
+                if a0 is not None:
+                    a0.ignore()
                 return
         self.save_settings()  # Save settings on close
         logging.debug("Closing the application. No unsaved changes or user chose not to save.")
-        event.accept()
+        if a0 is not None:
+            a0.accept()
 
     def open_manual_add_album_dialog(self):
         logging.info("Opening Manual Add Album Dialog")
@@ -3341,10 +3342,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         album_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         
         # Store metadata for context menu use
-        album_label.album_name = album
-        album_label.album_id = ""
-        album_label.artist_name = artist
-        album_label.album_url = self.get_album_url("", artist, album)
+        album_label.setProperty("album_name", album)
+        album_label.setProperty("album_id", "")
+        album_label.setProperty("artist_name", artist)
+        album_label.setProperty("album_url", self.get_album_url("", artist, album))
         
         # Set the label as the widget for the album cell
         self.album_table.setIndexWidget(album_index, album_label)
