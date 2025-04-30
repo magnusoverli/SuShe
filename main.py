@@ -1412,11 +1412,41 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         msg_box.exec()
 
     def update_recent_files_menu(self):
+        """
+        Updates the Recent Files menu with the list of recently opened files.
+        Shows filenames with tooltips for full paths and adds a checkmark for the currently open file.
+        """
         self.recent_files_menu.clear()
-        for file_path in self.recent_files:
+        
+        # If no recent files, add a disabled "No recent files" entry
+        if not self.recent_files:
+            no_files_action = QAction("No recent files", self)
+            no_files_action.setEnabled(False)
+            self.recent_files_menu.addAction(no_files_action)
+            return
+        
+        # Add each recent file as a menu item
+        for index, file_path in enumerate(self.recent_files):
             if os.path.exists(file_path):
-                action = QAction(file_path, self)
+                # Get just the filename for display
+                file_name = os.path.basename(file_path)
+                
+                # Create action with shortened display name and full path tooltip
+                action = QAction(file_name, self)
+                action.setToolTip(file_path)
+                
+                # Connect to the loading function
                 action.triggered.connect(partial(self.trigger_load_album_data, file_path))
+                
+                # Add a checkmark if this is the current file
+                if file_path == self.current_file_path:
+                    action.setCheckable(True)
+                    action.setChecked(True)
+                
+                # Add keyboard shortcut for the first 9 items (Ctrl+1 through Ctrl+9)
+                if index < 9:
+                    action.setShortcut(f"Ctrl+{index+1}")
+                    
                 self.recent_files_menu.addAction(action)
 
     def show_help(self):
