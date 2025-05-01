@@ -1475,23 +1475,53 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        
+        # Create tabs
         self.album_list_tab = QWidget()
         self.search_tab = QWidget()
         self.settings_tab = QWidget()
 
-        
+        # Add tabs
         self.tabs.addTab(self.album_list_tab, "Album List")
         self.tabs.addTab(self.search_tab, "Search Albums")
         self.tabs.addTab(self.settings_tab, "Settings")
 
+        # Add "+" button to the right of the tab bar
+        tab_bar = self.tabs.tabBar()
         
+        # Create a layout with a stretch to push button to right
+        tab_layout = QHBoxLayout()
+        tab_layout.setContentsMargins(0, 0, 5, 0)
+        tab_layout.addStretch()
+        
+        # Create "+" button
+        self.add_button = QPushButton("+")
+        self.add_button.setFixedSize(24, 24)
+        self.add_button.setObjectName("tab_add_button")
+        self.add_button.clicked.connect(self.open_search_dialog)
+        tab_layout.addWidget(self.add_button)
+        
+        # Create a widget to host the button
+        tab_widget = QWidget()
+        tab_widget.setLayout(tab_layout)
+        
+        # Add the widget to the right corner of the tab widget
+        self.tabs.setCornerWidget(tab_widget, Qt.Corner.TopRightCorner)
+
+        # Setup tab content
         self.setup_album_list_tab()
         self.setup_search_tab()
         self.setup_settings_tab()
 
-        # Set the current tab to the "Album List" tab
-        self.tabs.setCurrentWidget(self.album_list_tab)
+    def open_search_dialog(self):
+        """Opens a dialog for searching albums"""
+        from dialogs import SearchDialog
+        
+        # Create new dialog instance each time for fresh state
+        self.search_dialog = SearchDialog(self)
+        self.search_dialog.show()
+        
+        # Log the action
+        logging.info("Opened album search dialog")
 
     def openSubmitDialog(self):
         if self.dataChanged:

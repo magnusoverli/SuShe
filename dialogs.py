@@ -1,12 +1,13 @@
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                            QPushButton, QLineEdit, QTextEdit, QComboBox, 
-                            QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter, QListWidget, QTextBrowser)
+from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QSize, QRect
+from PyQt6.QtGui import QIcon, QColor, QPixmap, QCursor
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QListWidgetItem,
+                            QPushButton, QLineEdit, QTextEdit, QComboBox, QStyledItemDelegate, QStyle,
+                            QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter, QListWidget, QTextBrowser, QWidget)
 import logging
 import os
 import requests
 from datetime import datetime
+from workers import Worker
 
 class EditableComboBox(QComboBox):
     """
@@ -883,3 +884,513 @@ class GenreUpdateDialog(QDialog):
                 min-height: 30px;
             }
         """)
+
+class SearchDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.main_window = parent
+        self.setWindowTitle("Add Album")
+        self.setMinimumSize(750, 600)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #121212;
+            }
+        """)
+        
+        # Create main layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(20)
+        
+        # Header with title
+        header_label = QLabel("Search for Albums")
+        header_label.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 16px;
+        """)
+        main_layout.addWidget(header_label)
+        
+        # Search input group
+        search_group = QGroupBox()
+        search_group.setStyleSheet("""
+            QGroupBox {
+                border: 1px solid #333333;
+                border-radius: 8px;
+                padding: 16px;
+                background-color: #181818;
+            }
+        """)
+        search_layout = QVBoxLayout(search_group)
+        search_layout.setSpacing(12)
+        
+        # Artist search section
+        search_label = QLabel("Enter artist name:")
+        search_label.setStyleSheet("color: #B3B3B3; font-weight: bold;")
+        search_layout.addWidget(search_label)
+        
+        # Search input with icon
+        input_container = QWidget()
+        input_layout = QHBoxLayout(input_container)
+        input_layout.setContentsMargins(0, 0, 0, 0)
+        input_layout.setSpacing(8)
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search for artist...")
+        self.search_input.setMinimumHeight(40)
+        self.search_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #333333;
+                border-radius: 20px;
+                padding: 8px 16px;
+                color: white;
+                font-size: 14px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #1DB954;
+            }
+        """)
+        
+        self.search_button = QPushButton("Search")
+        self.search_button.setMinimumHeight(40)
+        self.search_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.search_button.setStyleSheet("""
+            QPushButton {
+                background-color: #1DB954;
+                color: black;
+                border-radius: 20px;
+                padding: 8px 20px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #1ED760;
+            }
+            QPushButton:pressed {
+                background-color: #169C46;
+            }
+        """)
+        
+        input_layout.addWidget(self.search_input, 1)
+        input_layout.addWidget(self.search_button)
+        search_layout.addWidget(input_container)
+        
+        # Loading indicator
+        self.loading_indicator = QLabel("Searching...")
+        self.loading_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_indicator.setStyleSheet("color: #B3B3B3; font-style: italic;")
+        self.loading_indicator.hide()
+        search_layout.addWidget(self.loading_indicator)
+        
+        main_layout.addWidget(search_group)
+        
+        # Results section
+        results_layout = QHBoxLayout()
+        results_layout.setSpacing(20)
+        
+        # Artists column
+        artist_column = QVBoxLayout()
+        artist_label = QLabel("Artists")
+        artist_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+        artist_column.addWidget(artist_label)
+        
+        self.artist_list = QListWidget()
+        self.artist_list.setStyleSheet("""
+            QListWidget {
+                background-color: #181818;
+                border-radius: 8px;
+                padding: 8px;
+                border: 1px solid #333333;
+            }
+        """)
+        
+        # Set up the custom delegate for artist items
+        self.artist_delegate = ArtistItemDelegate(self.artist_list)
+        self.artist_list.setItemDelegate(self.artist_delegate)
+        self.artist_list.setIconSize(QSize(50, 50))
+        self.artist_list.setUniformItemSizes(True)
+        artist_column.addWidget(self.artist_list)
+        
+        # Albums column
+        album_column = QVBoxLayout()
+        album_label = QLabel("Albums")
+        album_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+        album_column.addWidget(album_label)
+        
+        self.album_list = QListWidget()
+        self.album_list.setStyleSheet("""
+            QListWidget {
+                background-color: #181818;
+                border-radius: 8px;
+                padding: 8px;
+                border: 1px solid #333333;
+            }
+        """)
+        
+        # Set up custom delegate for album items
+        self.album_delegate = AlbumItemDelegate(self.album_list)
+        self.album_list.setItemDelegate(self.album_delegate)
+        self.album_list.setIconSize(QSize(50, 50))
+        self.album_list.setUniformItemSizes(True)
+        album_column.addWidget(self.album_list)
+        
+        results_layout.addLayout(artist_column)
+        results_layout.addLayout(album_column)
+        main_layout.addLayout(results_layout, 1)
+        
+        # Instructions
+        instructions = QLabel("Double-click on an artist to see their albums. Double-click on an album to add it to your list.")
+        instructions.setStyleSheet("color: #B3B3B3; font-style: italic;")
+        instructions.setWordWrap(True)
+        instructions.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(instructions)
+        
+        # Connect signals
+        self.search_button.clicked.connect(self.search_artist)
+        self.search_input.returnPressed.connect(self.search_artist)
+        self.artist_list.itemDoubleClicked.connect(self.display_artist_albums)
+        self.album_list.itemDoubleClicked.connect(self.fetch_album_details)
+        
+        # Image cache and active threads
+        self.image_cache = {}
+        self.active_threads = []
+    
+    def closeEvent(self, event):
+        for thread in self.active_threads:
+            if thread.isRunning():
+                thread.wait(500)
+        event.accept()
+    
+    def search_artist(self):
+        artist_name = self.search_input.text().strip()
+        if not artist_name:
+            QMessageBox.warning(self, "Input Error", "Please enter an artist name.")
+            return
+            
+        self.artist_list.clear()
+        self.album_list.clear()
+        
+        self.loading_indicator.show()
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        
+        self.main_window.artist_search_worker = Worker(self._search_artist, artist_name)
+        self.main_window.artist_search_worker.finished.connect(self.on_artists_fetched)
+        self.active_threads.append(self.main_window.artist_search_worker)
+        self.main_window.artist_search_worker.start()
+    
+    def _search_artist(self, artist_name):
+        """Modified version that also fetches artist images"""
+        access_token = self.main_window.get_access_token()
+        if not access_token:
+            return {"error": "Authentication required"}
+
+        url = f"https://api.spotify.com/v1/search"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        params = {
+            "q": artist_name,
+            "type": "artist",
+            "limit": 50
+        }
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"error": str(e)}
+    
+    def on_artists_fetched(self, result):
+        QApplication.restoreOverrideCursor()
+        self.loading_indicator.hide()
+        
+        if "error" in result:
+            if result["error"] == "Authentication required":
+                return
+            else:
+                QMessageBox.warning(self, "Error", f"Failed to fetch artists: {result['error']}")
+                return
+
+        artists = result.get("artists", {}).get("items", [])
+        self.main_window.artist_id_map.clear()
+        artist_names = set()
+
+        for artist in artists:
+            display_name = artist['name']
+            if display_name in artist_names:
+                display_name = f"{artist['name']} ({artist['followers']['total']} followers)"
+            
+            # Create item with artist name
+            item = QListWidgetItem(display_name)
+            
+            # Set the text alignment to leave room for the icon
+            item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            
+            # Store ID in main window's map
+            self.main_window.artist_id_map[display_name] = artist['id']
+            artist_names.add(artist['name'])
+            
+            # Get artist image if available
+            image_url = None
+            if artist['images'] and len(artist['images']) > 0:
+                # Find a suitable small image (around 64x64)
+                for img in artist['images']:
+                    if img['width'] <= 100:
+                        image_url = img['url']
+                        break
+                
+                # If no small image found, use the last one (typically smallest)
+                if not image_url and len(artist['images']) > 0:
+                    image_url = artist['images'][-1]['url']
+                
+                # Download and set the image
+                if image_url:
+                    self.load_artist_image(item, image_url)
+            
+            self.artist_list.addItem(item)
+            
+        if not artists:
+            QMessageBox.information(self, "No Results", "No artists found matching your search.")
+    
+    def load_artist_image(self, item, image_url):
+        """Load artist image and set it as item icon"""
+        # Check cache first
+        if image_url in self.image_cache:
+            item.setIcon(self.image_cache[image_url])
+            return
+            
+        # Download image in a worker thread
+        worker = Worker(self._download_image, image_url)
+        worker.finished.connect(lambda result, item=item, url=image_url: 
+                               self._set_artist_image(result, item, url))
+        self.active_threads.append(worker)
+        worker.start()
+    
+    def _download_image(self, image_url):
+        try:
+            response = requests.get(image_url, timeout=10)
+            response.raise_for_status()
+            return response.content
+        except Exception as e:
+            logging.error(f"Error downloading image: {e}")
+            return None
+    
+    def _set_artist_image(self, image_data, item, url):
+        if not image_data:
+            return
+            
+        try:
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_data)
+            
+            # Scale the image to correct size
+            scaled_pixmap = pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            
+            # Create icon and set it
+            icon = QIcon(scaled_pixmap)
+            self.image_cache[url] = icon
+            item.setIcon(icon)
+            
+            # Force item height to accommodate the icon
+            item.setSizeHint(QSize(item.sizeHint().width(), 48))
+        except Exception as e:
+            logging.error(f"Error setting artist image: {e}")
+    
+    def display_artist_albums(self, item):
+        artist_name = item.text()
+        artist_id = self.main_window.artist_id_map.get(artist_name)
+        if not artist_id:
+            logging.error(f"Artist ID for {artist_name} not found")
+            return
+
+        self.album_list.clear()
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        
+        # Use main window's album fetch worker
+        self.main_window.albums_fetch_worker = Worker(self.main_window._fetch_artist_albums, artist_id)
+        self.main_window.albums_fetch_worker.finished.connect(self.on_albums_fetched)
+        
+        # Track the thread
+        self.active_threads.append(self.main_window.albums_fetch_worker)
+        
+        # Start the worker
+        self.main_window.albums_fetch_worker.start()
+    
+    def on_albums_fetched(self, result):
+        QApplication.restoreOverrideCursor()
+        if "error" in result:
+            if result["error"] == "Authentication required":
+                return
+            else:
+                QMessageBox.warning(self, "Error", f"Failed to fetch albums: {result['error']}")
+                return
+
+        albums = result.get('items', [])
+        self.album_list.clear()
+        self.main_window.album_id_map.clear()
+
+        # Group albums by name+year
+        albums_by_name_year = {}
+        for album in albums:
+            year = album.get('release_date', '')[:4]
+            name_year_key = f"{album['name']} - {year}"
+            if name_year_key not in albums_by_name_year:
+                albums_by_name_year[name_year_key] = []
+            albums_by_name_year[name_year_key].append(album)
+        
+        # Add items to list
+        self.album_list.blockSignals(True)
+        for album in albums:
+            year = album.get('release_date', '')[:4]
+            name_year_key = f"{album['name']} - {year}"
+            
+            has_duplicates = len(albums_by_name_year[name_year_key]) > 1
+            
+            if has_duplicates:
+                album_type = album.get('album_type', '').title()
+                display_text = f"{album['name']} - {year} ({album_type})"
+            else:
+                display_text = f"{album['name']} - {year}"
+            
+            # Create item with album name
+            item = QListWidgetItem(display_text)
+            
+            # Store album ID in map
+            self.main_window.album_id_map[display_text] = album['id']
+            
+            # Get album cover if available
+            image_url = None
+            if album['images'] and len(album['images']) > 0:
+                for img in album['images']:
+                    if img['width'] <= 300:  # Get a reasonably sized image
+                        image_url = img['url']
+                        break
+                
+                # If no small image found, use the last one
+                if not image_url and len(album['images']) > 0:
+                    image_url = album['images'][-1]['url']
+                
+                # Download and set the image
+                if image_url:
+                    self.load_album_image(item, image_url)
+            
+            self.album_list.addItem(item)
+        
+        self.album_list.blockSignals(False)
+
+    def load_album_image(self, item, image_url):
+        """Load album cover image and set it as item icon"""
+        # Check cache first
+        if image_url in self.image_cache:
+            item.setIcon(self.image_cache[image_url])
+            return
+            
+        # Download image in a worker thread
+        worker = Worker(self._download_image, image_url)
+        worker.finished.connect(lambda result, item=item, url=image_url: 
+                            self._set_album_image(result, item, url))
+        self.active_threads.append(worker)
+        worker.start()
+
+    def _set_album_image(self, image_data, item, url):
+        if not image_data:
+            return
+            
+        try:
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_data)
+            
+            # Scale the image to correct size
+            scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            
+            # Create icon and set it
+            icon = QIcon(scaled_pixmap)
+            self.image_cache[url] = icon
+            item.setIcon(icon)
+            
+            # Force item height to accommodate the icon
+            item.setSizeHint(QSize(item.sizeHint().width(), 60))
+        except Exception as e:
+            logging.error(f"Error setting album image: {e}")
+
+    
+    def fetch_album_details(self, item):
+        album_text = item.text()
+        album_id = self.main_window.album_id_map.get(album_text)
+        if not album_id:
+            logging.error(f"Album ID for {album_text} not found")
+            return
+        
+        # Call main window's method to add album to list - no confirmation dialog
+        self.main_window.fetch_album_details_by_id(album_id)
+
+class ArtistItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.image_cache = {}
+        
+    def paint(self, painter, option, index):
+        # Draw the background
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor(29, 185, 84, 76))  # Spotify green with transparency
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(option.rect, QColor(51, 51, 51))
+        else:
+            painter.fillRect(option.rect, QColor(24, 24, 24))
+            
+        # Get icon and text
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        
+        # Draw icon if available
+        if icon and isinstance(icon, QIcon):
+            # Increase icon size to 50x50
+            icon_size = 50
+            # Calculate vertical center position for the icon
+            icon_y = option.rect.top() + (option.rect.height() - icon_size) // 2
+            icon_rect = QRect(option.rect.left() + 10, icon_y, icon_size, icon_size)
+            icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter)
+            
+        # Draw text
+        painter.setPen(QColor(255, 255, 255))
+        # Adjust text position to account for larger icon
+        text_rect = option.rect.adjusted(70, 0, -10, 0)
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+        
+    def sizeHint(self, option, index):
+        # Ensure each item has enough height for the larger icon
+        size = super().sizeHint(option, index)
+        return QSize(size.width(), 60)  # Increase height to 60px
+
+class AlbumItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.image_cache = {}
+        
+    def paint(self, painter, option, index):
+        # Draw the background
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, QColor(29, 185, 84, 76))
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(option.rect, QColor(51, 51, 51))
+        else:
+            painter.fillRect(option.rect, QColor(24, 24, 24))
+            
+        # Get icon and text
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        
+        # Draw icon if available
+        if icon and isinstance(icon, QIcon):
+            icon_size = 50
+            icon_y = option.rect.top() + (option.rect.height() - icon_size) // 2
+            icon_rect = QRect(option.rect.left() + 10, icon_y, icon_size, icon_size)
+            icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter)
+            
+        # Draw text
+        painter.setPen(QColor(255, 255, 255))
+        text_rect = option.rect.adjusted(70, 0, -10, 0)
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+        
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        return QSize(size.width(), 60)

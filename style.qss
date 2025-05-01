@@ -691,3 +691,44 @@ QLabel[isAlbumLink="true"] {
 QLabel[isAlbumLink="true"]:hover {
     text-decoration: underline;
 }
+
+QPushButton#tab_add_button {
+    background-color: #1DB954;
+    border: none;
+    border-radius: 12px;
+    color: #121212;
+    font-weight: bold;
+    font-size: 14pt;
+}
+
+QPushButton#tab_add_button:hover {
+    background-color: #1ED760;
+}
+
+QPushButton#tab_add_button:pressed {
+    background-color: #169C46;
+}
+
+/* Styling for the search dialog */
+QDialog[SearchDialog] {
+    background-color: #121212;
+}
+
+QDialog[SearchDialog] QListWidget {
+    background-color: #181818;
+    border: 1px solid #333333;
+    border-radius: 4px;
+}
+
+QDialog[SearchDialog] QListWidget::item {
+    padding: 8px;
+    border-radius: 2px;
+}
+
+QDialog[SearchDialog] QListWidget::item:hover {
+    background-color: #282828;
+}
+
+QDialog[SearchDialog] QListWidget::item:selected {
+    background-color: #333333;
+}
