@@ -96,6 +96,15 @@ class MenuBar:
         self.main_window.show_positions_action.setChecked(True)  # Default to showing positions
         view_menu.addAction(self.main_window.show_positions_action)
 
+        # Tools menu
+        tools_menu = QMenu("Tools", bar)
+        bar.addMenu(tools_menu)
+        
+        settings_action = self.main_window.create_action(
+            "Settings", "Ctrl+,", triggered=self.main_window.open_settings_dialog
+        )
+        tools_menu.addAction(settings_action)
+
         # Help menu
         help_menu = QMenu("Help", bar)
         bar.addMenu(help_menu)

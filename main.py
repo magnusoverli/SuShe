@@ -837,9 +837,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     self.bot_token = config.get('telegram', {}).get('bot_token', '')
                     self.chat_id = config.get('telegram', {}).get('chat_id', '')
                     self.message_thread_id = config.get('telegram', {}).get('message_thread_id', '')
-                    self.bot_token_input.setText(self.bot_token)
-                    self.chat_id_input.setText(self.chat_id)
-                    self.message_thread_id_input.setText(self.message_thread_id)
 
                     # Load GitHub credentials
                     self.github_token = config.get('github', {}).get('personal_access_token', '')
@@ -848,22 +845,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
                     # Load Preferred Music Player
                     self.preferred_music_player = config.get('application', {}).get('preferred_music_player', 'Spotify')
-                    index = self.preferred_music_player_combo.findText(self.preferred_music_player)
-                    if index >= 0:
-                        self.preferred_music_player_combo.setCurrentIndex(index)
-                    else:
-                        self.preferred_music_player_combo.setCurrentIndex(0)
 
                     # Load Webhook URL
                     self.webhook_url = config.get('webhook', {}).get('url', '')
                     if not self.webhook_url:
                         logging.warning("Webhook URL not found in config.json.")
-                    # Update the UI field with the loaded webhook URL
-                    if hasattr(self, 'webhook_url_input'):
-                        self.webhook_url_input.setText(self.webhook_url)
-                        logging.debug(f"Webhook URL input set to: {self.webhook_url}")
-                    else:
-                        logging.error("webhook_url_input UI element not found.")
 
                     logging.info("Configuration loaded successfully.")
             except json.JSONDecodeError as e:
@@ -914,20 +900,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.github_repo = default_config.get('github', {}).get('repo', '')
                 self.preferred_music_player = default_config.get('application', {}).get('preferred_music_player', 'Spotify')
                 
-                # Update UI elements
-                self.bot_token_input.setText(self.bot_token)
-                self.chat_id_input.setText(self.chat_id)
-                self.message_thread_id_input.setText(self.message_thread_id)
-                if hasattr(self, 'webhook_url_input'):
-                    self.webhook_url_input.setText(self.webhook_url)
-                
-                # Set preferred music player combo
-                index = self.preferred_music_player_combo.findText(self.preferred_music_player)
-                if index >= 0:
-                    self.preferred_music_player_combo.setCurrentIndex(index)
-                else:
-                    self.preferred_music_player_combo.setCurrentIndex(0)
-                    
                 # Show a dialog to the user
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Icon.Information)
@@ -948,8 +920,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 msg_box.exec()
                 
                 if msg_box.clickedButton() == go_to_settings_button:
-                    # Navigate to the Settings tab
-                    self.tabs.setCurrentWidget(self.settings_tab)
+                    # Navigate to the Settings dialog
+                    self.open_settings_dialog()
                     
             except Exception as e:
                 logging.error(f"Failed to create default config.json: {e}")
@@ -958,9 +930,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 
                 # Set built-in defaults even if we couldn't save them
                 self.preferred_music_player = 'Spotify'
-                index = self.preferred_music_player_combo.findText(self.preferred_music_player)
-                if index >= 0:
-                    self.preferred_music_player_combo.setCurrentIndex(index)
 
     def toggle_show_positions(self):
         # Get the current state from the action (checked or unchecked)
@@ -1478,13 +1447,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        # Create tabs (without search tab)
+        # Create tab (only album list)
         self.album_list_tab = QWidget()
-        self.settings_tab = QWidget()
 
-        # Add tabs (without search tab)
+        # Add tab (only album list)
         self.tabs.addTab(self.album_list_tab, "Album List")
-        self.tabs.addTab(self.settings_tab, "Settings")
 
         # Add "+" button to the right of the tab bar
         # Create a widget to host the button
@@ -1505,9 +1472,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         # Set the corner widget
         self.tabs.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
-        # Setup tab content (without search tab)
+        # Setup tab content (only album list)
         self.setup_album_list_tab()
-        self.setup_settings_tab()
 
     def open_search_dialog(self):
         """Opens a dialog for searching albums"""
@@ -1755,122 +1721,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         else:
             logging.error("Could not apply column widths because horizontal header is None.")
 
-    def setup_settings_tab(self):
-        layout = QVBoxLayout()
+    def open_settings_dialog(self):
+        """Open the settings dialog"""
+        from dialogs import SettingsDialog
         
-        # Spotify Authentication GroupBox
-        spotify_auth_group_box = QGroupBox("Spotify Authentication")
-        spotify_auth_layout = QVBoxLayout()
-        
-        # Status label
-        self.spotify_auth_status = QLabel("Not logged in to Spotify")
-        spotify_auth_layout.addWidget(self.spotify_auth_status)
-        
-        # Login/logout buttons
-        button_layout = QHBoxLayout()
-        self.spotify_login_button = QPushButton("Login with Spotify")
-        self.spotify_login_button.clicked.connect(self.login_to_spotify)
-        
-        self.spotify_logout_button = QPushButton("Logout from Spotify")
-        self.spotify_logout_button.clicked.connect(self.logout_from_spotify)
-        self.spotify_logout_button.setEnabled(False)  # Disabled by default
-        
-        button_layout.addWidget(self.spotify_login_button)
-        button_layout.addWidget(self.spotify_logout_button)
-        spotify_auth_layout.addLayout(button_layout)
-        
-        spotify_auth_group_box.setLayout(spotify_auth_layout)
-        layout.addWidget(spotify_auth_group_box)
-        
-        layout.addSpacing(30)
-
-        # Webhook Settings GroupBox
-        webhook_group_box = QGroupBox("Webhook Settings")
-        webhook_layout = QVBoxLayout()
-
-        # Webhook URL Input
-        webhook_url_label = QLabel("Webhook URL:")
-        webhook_layout.addWidget(webhook_url_label)
-        self.webhook_url_input = QLineEdit()
-        self.webhook_url_input.setText(getattr(self, 'webhook_url', ''))
-        webhook_layout.addWidget(self.webhook_url_input)
-
-        # Save Webhook Settings Button
-        save_webhook_button = QPushButton("Save Webhook Settings")
-        webhook_layout.addWidget(save_webhook_button)
-        save_webhook_button.clicked.connect(self.save_webhook_settings)
-
-        webhook_group_box.setLayout(webhook_layout)
-        layout.addWidget(webhook_group_box)
-
-        layout.addSpacing(30)
-
-        # Telegram settings group box
-        telegram_group_box = QGroupBox("Telegram Submission Settings")
-        telegram_layout = QVBoxLayout()
-
-        # Bot Token Input
-        bot_token_label = QLabel("Bot Token:")
-        telegram_layout.addWidget(bot_token_label)
-        self.bot_token_input = QLineEdit()
-        telegram_layout.addWidget(self.bot_token_input)
-
-        # Chat ID Input
-        chat_id_label = QLabel("Chat ID:")
-        telegram_layout.addWidget(chat_id_label)
-        self.chat_id_input = QLineEdit()
-        telegram_layout.addWidget(self.chat_id_input)
-
-        # Message Thread ID Input
-        message_thread_id_label = QLabel("Message Thread ID:")
-        telegram_layout.addWidget(message_thread_id_label)
-        self.message_thread_id_input = QLineEdit()
-        telegram_layout.addWidget(self.message_thread_id_input)
-
-        # Save Telegram Settings Button
-        save_telegram_button = QPushButton("Save Telegram Settings")
-        telegram_layout.addWidget(save_telegram_button)
-        save_telegram_button.clicked.connect(self.save_telegram_settings)
-
-        telegram_group_box.setLayout(telegram_layout)
-        layout.addWidget(telegram_group_box)
-
-        layout.addSpacing(30)
-
-        # Application Settings GroupBox
-        app_settings_group_box = QGroupBox("Application Settings")
-        app_settings_layout = QVBoxLayout()
-
-        # Preferred Music Player Setting
-        preferred_music_player_label = QLabel("Preferred Music Player:")
-        app_settings_layout.addWidget(preferred_music_player_label)
-        self.preferred_music_player_combo = QComboBox()
-        self.preferred_music_player_combo.addItems(["Spotify", "Tidal"])
-        app_settings_layout.addWidget(self.preferred_music_player_combo)
-
-        # Save Application Settings Button
-        save_app_settings_button = QPushButton("Save Application Settings")
-        app_settings_layout.addWidget(save_app_settings_button)
-        save_app_settings_button.clicked.connect(self.save_application_settings)
-
-        app_settings_group_box.setLayout(app_settings_layout)
-        layout.addWidget(app_settings_group_box)
-
-        layout.addStretch()
-        self.settings_tab.setLayout(layout)
-
-    def update_spotify_auth_status(self):
-        """Update the Spotify authentication status display"""
-        if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
-            self.spotify_auth_status.setText("✓ Logged in to Spotify")
-            self.spotify_auth_status.setStyleSheet("color: green; font-weight: bold;")
-            self.spotify_login_button.setEnabled(False)
-            self.spotify_logout_button.setEnabled(True)
-        else:
-            self.spotify_auth_status.setText("Not logged in to Spotify")
-            self.spotify_auth_status.setStyleSheet("")
-            self.spotify_login_button.setEnabled(True)
-            self.spotify_logout_button.setEnabled(False)
+        dialog = SettingsDialog(self)
+        dialog.exec()
 
     def login_to_spotify(self):
         """
@@ -1986,8 +1842,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     QMessageBox.warning(self, "Authentication Warning", 
                                     f"Successfully authenticated but failed to save tokens: {e}")
                 
-                # Update UI and show success message
-                self.update_spotify_auth_status()
+                # Update UI - removed self.update_spotify_auth_status()
                 QMessageBox.information(self, "Success", "Successfully logged in to Spotify.")
                 
             else:
@@ -2083,8 +1938,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     except Exception as e2:
                         logging.error(f"Failed to remove token file: {e2}")
             
-            # Update UI
-            self.update_spotify_auth_status()
+            # Update UI - removed self.update_spotify_auth_status()
             QMessageBox.information(self, "Logged Out", "Successfully logged out from Spotify.")
             
         except Exception as e:
@@ -2105,7 +1959,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.spotify_auth = SpotifyAuth(default_client_id)
             
             if self.spotify_auth.load_tokens(tokens_path):
-                self.update_spotify_auth_status()
+                # Removed self.update_spotify_auth_status()
                 return True
         return False
 
@@ -2391,7 +2245,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.warning("Failed to refresh Spotify token")
             # Handle failed refresh - may need to prompt for login again
             self.spotify_auth.access_token = None
-            self.update_spotify_auth_status()
 
     def _search_artist(self, artist_name):
         access_token = self.get_access_token()

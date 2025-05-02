@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QSize, QRect
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QCursor
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QListWidgetItem,
-                            QPushButton, QLineEdit, QTextEdit, QComboBox, QStyledItemDelegate, QStyle,
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QApplication, QListWidgetItem, QSpacerItem,
+                            QPushButton, QLineEdit, QTextEdit, QComboBox, QStyledItemDelegate, QStyle, QSizePolicy,
                             QGroupBox, QFormLayout, QFileDialog, QMessageBox, QCompleter, QListWidget, QTextBrowser, QWidget)
 import logging
 import os
@@ -1423,3 +1423,253 @@ class AlbumItemDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         size = super().sizeHint(option, index)
         return QSize(size.width(), 60)
+
+class SettingsDialog(QDialog):
+    """
+    Dedicated settings dialog with a clean, focused interface.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._parent = parent
+        self.setWindowTitle("Settings")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(600)
+
+        self.initUI()
+    
+    def initUI(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(20)
+        
+        # Spotify Authentication Section
+        spotify_group = QGroupBox("Spotify Authentication")
+        spotify_layout = QVBoxLayout(spotify_group)
+        spotify_layout.setSpacing(12)
+        spotify_layout.setContentsMargins(16, 16, 16, 16)
+        
+        # Status label
+        self.spotify_auth_status = QLabel("Not logged in to Spotify")
+        self.spotify_auth_status.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent;")
+        spotify_layout.addWidget(self.spotify_auth_status)
+        
+        # Login/logout buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(12)
+        self.spotify_login_button = QPushButton("Login with Spotify")
+        self.spotify_login_button.clicked.connect(self.login_to_spotify)
+        
+        self.spotify_logout_button = QPushButton("Logout from Spotify")
+        self.spotify_logout_button.clicked.connect(self.logout_from_spotify)
+        self.spotify_logout_button.setEnabled(False)
+        
+        button_layout.addWidget(self.spotify_login_button)
+        button_layout.addWidget(self.spotify_logout_button)
+        spotify_layout.addLayout(button_layout)
+        
+        layout.addWidget(spotify_group)
+        
+        # Webhook Settings Group
+        webhook_group = QGroupBox("Webhook Settings")
+        webhook_group_layout = QVBoxLayout(webhook_group)
+        webhook_group_layout.setContentsMargins(16, 16, 16, 16)
+        webhook_group_layout.setSpacing(12)
+        
+        # Create a horizontal layout for webhook URL
+        webhook_row = QHBoxLayout()
+        webhook_row.setSpacing(12)
+        
+        webhook_url_label = QLabel("Webhook URL:")
+        webhook_url_label.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent; min-width: 120px;")
+        webhook_url_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.webhook_url_input = QLineEdit()
+        if hasattr(self._parent, 'webhook_url') and self._parent.webhook_url:
+            self.webhook_url_input.setText(self._parent.webhook_url)
+        
+        webhook_row.addWidget(webhook_url_label)
+        webhook_row.addWidget(self.webhook_url_input, 1)
+        
+        # Add webhook row to group layout
+        webhook_group_layout.addLayout(webhook_row)
+        
+        # Save button row
+        save_button_row = QHBoxLayout()
+        save_button_row.addSpacing(120)  # Align with input field
+        save_webhook_button = QPushButton("Save Webhook")
+        save_webhook_button.clicked.connect(self.save_webhook_settings)
+        save_button_row.addWidget(save_webhook_button)
+        save_button_row.addStretch()
+        
+        webhook_group_layout.addLayout(save_button_row)
+        
+        layout.addWidget(webhook_group)
+        
+        # Telegram Settings Group
+        telegram_group = QGroupBox("Telegram Submission")
+        telegram_group_layout = QVBoxLayout(telegram_group)
+        telegram_group_layout.setContentsMargins(16, 16, 16, 16)
+        telegram_group_layout.setSpacing(12)
+        
+        # Bot Token Input
+        bot_token_row = QHBoxLayout()
+        bot_token_row.setSpacing(12)
+        
+        bot_token_label = QLabel("Bot Token:")
+        bot_token_label.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent; min-width: 120px;")
+        bot_token_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.bot_token_input = QLineEdit()
+        if hasattr(self._parent, 'bot_token'):
+            self.bot_token_input.setText(self._parent.bot_token)
+        
+        bot_token_row.addWidget(bot_token_label)
+        bot_token_row.addWidget(self.bot_token_input, 1)
+        telegram_group_layout.addLayout(bot_token_row)
+        
+        # Chat ID Input
+        chat_id_row = QHBoxLayout()
+        chat_id_row.setSpacing(12)
+        
+        chat_id_label = QLabel("Chat ID:")
+        chat_id_label.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent; min-width: 120px;")
+        chat_id_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.chat_id_input = QLineEdit()
+        if hasattr(self._parent, 'chat_id'):
+            self.chat_id_input.setText(self._parent.chat_id)
+        
+        chat_id_row.addWidget(chat_id_label)
+        chat_id_row.addWidget(self.chat_id_input, 1)
+        telegram_group_layout.addLayout(chat_id_row)
+        
+        # Message Thread ID Input
+        message_thread_id_row = QHBoxLayout()
+        message_thread_id_row.setSpacing(12)
+        
+        message_thread_id_label = QLabel("Message Thread ID:")
+        message_thread_id_label.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent; min-width: 120px;")
+        message_thread_id_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.message_thread_id_input = QLineEdit()
+        if hasattr(self._parent, 'message_thread_id'):
+            self.message_thread_id_input.setText(self._parent.message_thread_id)
+        
+        message_thread_id_row.addWidget(message_thread_id_label)
+        message_thread_id_row.addWidget(self.message_thread_id_input, 1)
+        telegram_group_layout.addLayout(message_thread_id_row)
+        
+        # Save Telegram Settings Button
+        save_telegram_row = QHBoxLayout()
+        save_telegram_row.addSpacing(120)  # Align with input fields
+        save_telegram_button = QPushButton("Save Telegram")
+        save_telegram_button.clicked.connect(self.save_telegram_settings)
+        save_telegram_row.addWidget(save_telegram_button)
+        save_telegram_row.addStretch()
+        
+        telegram_group_layout.addLayout(save_telegram_row)
+        
+        layout.addWidget(telegram_group)
+        
+        # Application Settings Group
+        app_settings_group = QGroupBox("Application")
+        app_settings_group_layout = QVBoxLayout(app_settings_group)
+        app_settings_group_layout.setContentsMargins(16, 16, 16, 16)
+        app_settings_group_layout.setSpacing(12)
+        
+        # Preferred Music Player Setting
+        music_player_row = QHBoxLayout()
+        music_player_row.setSpacing(12)
+        
+        preferred_music_player_label = QLabel("Preferred Music Player:")
+        preferred_music_player_label.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent; min-width: 120px;")
+        preferred_music_player_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        self.preferred_music_player_combo = QComboBox()
+        self.preferred_music_player_combo.addItems(["Spotify", "Tidal"])
+        if hasattr(self._parent, 'preferred_music_player'):
+            index = self.preferred_music_player_combo.findText(self._parent.preferred_music_player)
+            if index >= 0:
+                self.preferred_music_player_combo.setCurrentIndex(index)
+        
+        music_player_row.addWidget(preferred_music_player_label)
+        music_player_row.addWidget(self.preferred_music_player_combo, 1)
+        app_settings_group_layout.addLayout(music_player_row)
+        
+        # Save Application Settings Button
+        save_app_row = QHBoxLayout()
+        save_app_row.addSpacing(120)  # Align with input field
+        save_app_settings_button = QPushButton("Save Application")
+        save_app_settings_button.clicked.connect(self.save_application_settings)
+        save_app_row.addWidget(save_app_settings_button)
+        save_app_row.addStretch()
+        
+        app_settings_group_layout.addLayout(save_app_row)
+        
+        layout.addWidget(app_settings_group)
+        
+        # Close button
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        close_button.setMinimumWidth(100)
+        button_layout.addWidget(close_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Update Spotify auth status when dialog opens
+        self.update_spotify_auth_status()
+    
+    def update_spotify_auth_status(self):
+        """Update the Spotify authentication status display"""
+        if self._parent and hasattr(self._parent, 'spotify_auth') and self._parent.spotify_auth.access_token:
+            self.spotify_auth_status.setText("✓ Logged in to Spotify")
+            self.spotify_auth_status.setStyleSheet("color: green; font-weight: bold; background-color: transparent;")
+            self.spotify_login_button.setEnabled(False)
+            self.spotify_logout_button.setEnabled(True)
+        else:
+            self.spotify_auth_status.setText("Not logged in to Spotify")
+            self.spotify_auth_status.setStyleSheet("color: #B3B3B3; font-weight: normal; background-color: transparent;")
+            self.spotify_login_button.setEnabled(True)
+            self.spotify_logout_button.setEnabled(False)
+    
+    def login_to_spotify(self):
+        """Delegate to parent's login method"""
+        if self._parent and hasattr(self._parent, 'login_to_spotify'):
+            self._parent.login_to_spotify()
+    
+    def logout_from_spotify(self):
+        """Delegate to parent's logout method"""
+        if self._parent and hasattr(self._parent, 'logout_from_spotify'):
+            self._parent.logout_from_spotify()
+    
+    def save_webhook_settings(self):
+        """Save webhook settings"""
+        if self._parent and hasattr(self._parent, 'save_webhook_settings'):
+            # Update parent's webhook_url_input if needed
+            if hasattr(self._parent, 'webhook_url_input'):
+                self._parent.webhook_url_input.setText(self.webhook_url_input.text())
+            self._parent.save_webhook_settings()
+    
+    def save_telegram_settings(self):
+        """Save telegram settings"""
+        if self._parent and hasattr(self._parent, 'save_telegram_settings'):
+            # Update parent's input fields if needed
+            if hasattr(self._parent, 'bot_token_input'):
+                self._parent.bot_token_input.setText(self.bot_token_input.text())
+            if hasattr(self._parent, 'chat_id_input'):
+                self._parent.chat_id_input.setText(self.chat_id_input.text())
+            if hasattr(self._parent, 'message_thread_id_input'):
+                self._parent.message_thread_id_input.setText(self.message_thread_id_input.text())
+            self._parent.save_telegram_settings()
+    
+    def save_application_settings(self):
+        """Save application settings"""
+        if self._parent and hasattr(self._parent, 'save_application_settings'):
+            # Update parent's combo box if needed
+            if hasattr(self._parent, 'preferred_music_player_combo'):
+                index = self.preferred_music_player_combo.findText(self.preferred_music_player_combo.currentText())
+                if index >= 0:
+                    self._parent.preferred_music_player_combo.setCurrentIndex(index)
+            self._parent.save_application_settings()
