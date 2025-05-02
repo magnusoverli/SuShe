@@ -1074,13 +1074,23 @@ class SearchDialog(QDialog):
         self.loading_indicator.show()
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         
-        self.main_window.artist_search_worker = Worker(self._search_artist, artist_name)
-        self.main_window.artist_search_worker.finished.connect(self.on_artists_fetched)
-        self.active_threads.append(self.main_window.artist_search_worker)
-        self.main_window.artist_search_worker.start()
+        # Check if main_window is None or doesn't have get_access_token method
+        if not self.main_window or not hasattr(self.main_window, 'get_access_token'):
+            QMessageBox.warning(self, "Error", "Cannot search: Main window reference is missing.")
+            self.loading_indicator.hide()
+            QApplication.restoreOverrideCursor()
+            return
+        
+        self.artist_search_worker = Worker(self._search_artist, artist_name)
+        self.artist_search_worker.finished.connect(self.on_artists_fetched)
+        self.active_threads.append(self.artist_search_worker)
+        self.artist_search_worker.start()
     
     def _search_artist(self, artist_name):
         """Modified version that also fetches artist images"""
+        if not self.main_window or not hasattr(self.main_window, 'get_access_token'):
+            return {"error": "Main window reference is missing"}
+            
         access_token = self.main_window.get_access_token()
         if not access_token:
             return {"error": "Authentication required"}
@@ -1205,15 +1215,21 @@ class SearchDialog(QDialog):
         self.album_list.clear()
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         
-        # Use main window's album fetch worker
-        self.main_window.albums_fetch_worker = Worker(self.main_window._fetch_artist_albums, artist_id)
-        self.main_window.albums_fetch_worker.finished.connect(self.on_albums_fetched)
+        # Create album fetch worker
+        if self.main_window and hasattr(self.main_window, '_fetch_artist_albums'):
+            self.albums_fetch_worker = Worker(self.main_window._fetch_artist_albums, artist_id)
+        else:
+            QMessageBox.warning(self, "Error", "Cannot fetch albums: Main window reference is missing.")
+            QApplication.restoreOverrideCursor()
+            return
+            
+        self.albums_fetch_worker.finished.connect(self.on_albums_fetched)
         
         # Track the thread
-        self.active_threads.append(self.main_window.albums_fetch_worker)
+        self.active_threads.append(self.albums_fetch_worker)
         
         # Start the worker
-        self.main_window.albums_fetch_worker.start()
+        self.albums_fetch_worker.start()
     
     def on_albums_fetched(self, result):
         QApplication.restoreOverrideCursor()
@@ -1314,6 +1330,11 @@ class SearchDialog(QDialog):
 
     
     def fetch_album_details(self, item):
+        if not self.main_window:
+            logging.error("Main window reference is missing")
+            QMessageBox.warning(self, "Error", "Cannot add album: Main window reference is missing.")
+            return
+            
         album_text = item.text()
         album_id = self.main_window.album_id_map.get(album_text)
         if not album_id:
@@ -1321,7 +1342,11 @@ class SearchDialog(QDialog):
             return
         
         # Call main window's method to add album to list - no confirmation dialog
-        self.main_window.fetch_album_details_by_id(album_id)
+        if hasattr(self.main_window, 'fetch_album_details_by_id'):
+            self.main_window.fetch_album_details_by_id(album_id)
+        else:
+            logging.error("Main window doesn't have fetch_album_details_by_id method")
+            QMessageBox.warning(self, "Error", "Cannot add album: Required method not found.")
 
 class ArtistItemDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -1329,6 +1354,10 @@ class ArtistItemDelegate(QStyledItemDelegate):
         self.image_cache = {}
         
     def paint(self, painter, option, index):
+        # Check if painter is None before using it
+        if painter is None:
+            return
+            
         # Draw the background
         if option.state & QStyle.StateFlag.State_Selected:
             painter.fillRect(option.rect, QColor(29, 185, 84, 76))  # Spotify green with transparency
@@ -1362,11 +1391,11 @@ class ArtistItemDelegate(QStyledItemDelegate):
         return QSize(size.width(), 60)  # Increase height to 60px
 
 class AlbumItemDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.image_cache = {}
-        
     def paint(self, painter, option, index):
+        # Check if painter is None before using it
+        if painter is None:
+            return
+            
         # Draw the background
         if option.state & QStyle.StateFlag.State_Selected:
             painter.fillRect(option.rect, QColor(29, 185, 84, 76))

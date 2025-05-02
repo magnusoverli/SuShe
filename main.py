@@ -1472,44 +1472,41 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.close()
 
     def setup_tabs(self):
+        from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
+        from PyQt6.QtCore import Qt
+        
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        # Create tabs
+        # Create tabs (without search tab)
         self.album_list_tab = QWidget()
-        self.search_tab = QWidget()
         self.settings_tab = QWidget()
 
-        # Add tabs
+        # Add tabs (without search tab)
         self.tabs.addTab(self.album_list_tab, "Album List")
-        self.tabs.addTab(self.search_tab, "Search Albums")
         self.tabs.addTab(self.settings_tab, "Settings")
 
         # Add "+" button to the right of the tab bar
-        tab_bar = self.tabs.tabBar()
-        
-        # Create a layout with a stretch to push button to right
-        tab_layout = QHBoxLayout()
-        tab_layout.setContentsMargins(0, 0, 5, 0)
-        tab_layout.addStretch()
-        
-        # Create "+" button
-        self.add_button = QPushButton("+")
-        self.add_button.setFixedSize(24, 24)
-        self.add_button.setObjectName("tab_add_button")
-        self.add_button.clicked.connect(self.open_search_dialog)
-        tab_layout.addWidget(self.add_button)
-        
         # Create a widget to host the button
-        tab_widget = QWidget()
-        tab_widget.setLayout(tab_layout)
+        corner_widget = QWidget()
+        corner_layout = QHBoxLayout(corner_widget)
+        corner_layout.setContentsMargins(0, 0, 5, 0)
+        corner_layout.setSpacing(0)
         
-        # Add the widget to the right corner of the tab widget
-        self.tabs.setCornerWidget(tab_widget, Qt.Corner.TopRightCorner)
+        # Create "+" icon button
+        self.add_button = QPushButton()
+        self.add_button.setFixedSize(28, 28)
+        self.add_button.setObjectName("tab_add_button")
+        self.add_button.setToolTip("Add album")
+        self.add_button.setText("+")
+        self.add_button.clicked.connect(self.open_search_dialog)
+        corner_layout.addWidget(self.add_button)
+        
+        # Set the corner widget
+        self.tabs.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
-        # Setup tab content
+        # Setup tab content (without search tab)
         self.setup_album_list_tab()
-        self.setup_search_tab()
         self.setup_settings_tab()
 
     def open_search_dialog(self):
@@ -1610,36 +1607,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             except Exception as e:
                 logging.error(f"Failed to import config: {e}")
                 QMessageBox.critical(self, "Import Failed", f"Failed to import config: {e}")
-
-    def setup_search_tab(self):
-        layout = QVBoxLayout()
-
-        search_label = QLabel("Search:")
-        layout.addWidget(search_label)
-
-        search_layout = QHBoxLayout()
-        self.search_input = QLineEdit()
-        search_layout.addWidget(self.search_input)
-        self.search_button = QPushButton("Search")
-        search_layout.addWidget(self.search_button)
-        self.search_button.clicked.connect(self.search_artist)
-        layout.addLayout(search_layout)
-
-        artist_label = QLabel("Artists:")
-        layout.addWidget(artist_label)
-
-        self.artist_list = QListWidget()
-        layout.addWidget(self.artist_list)
-
-        album_label = QLabel("Albums:")
-        layout.addWidget(album_label)
-
-        self.album_list = QListWidget()
-        layout.addWidget(self.album_list)
-        self.search_input.returnPressed.connect(self.search_artist)
-        self.artist_list.itemDoubleClicked.connect(self.display_artist_albums)
-        self.album_list.itemDoubleClicked.connect(self.fetch_album_details)
-        self.search_tab.setLayout(layout)
 
     def setup_album_list_tab(self):
         layout = QVBoxLayout()
@@ -2426,19 +2393,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.spotify_auth.access_token = None
             self.update_spotify_auth_status()
 
-    def search_artist(self):
-        artist_name = self.search_input.text().strip()
-        if not artist_name:
-            QMessageBox.warning(self, "Input Error", "Please enter an artist name.")
-            logging.warning("Search attempted without an artist name")
-            return
-
-        self.artist_list.clear()
-        logging.info(f"Searching for artist: {artist_name}")
-        self.artist_search_worker = Worker(self._search_artist, artist_name)
-        self.artist_search_worker.finished.connect(self.on_artists_fetched)
-        self.artist_search_worker.start()
-
     def _search_artist(self, artist_name):
         access_token = self.get_access_token()
         if not access_token:
@@ -2461,47 +2415,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.error(f"Failed to search for artist {artist_name}: {e}")
             return {"error": str(e)}
 
-    def on_artists_fetched(self, result):
-        QApplication.restoreOverrideCursor()
-        if "error" in result:
-            if result["error"] == "Authentication required":
-                # Don't show an error message here since we've already
-                # prompted the user via the signal/slot mechanism
-                logging.info("Authentication required for artist search")
-                return
-            else:
-                logging.error(f"Error fetching artists: {result['error']}")
-                QMessageBox.warning(self, "Error", f"Failed to fetch artists: {result['error']}")
-                return
-
-        artists = result.get("artists", {}).get("items", [])
-        logging.info(f"Fetched {len(artists)} artists")
-        self.artist_id_map.clear()
-        artist_names = set()  # Keep track of artist names we've seen
-
-        for artist in artists:
-            display_name = artist['name']
-            # If we've seen this artist name before, append a unique identifier (e.g., follower count)
-            if display_name in artist_names:
-                display_name = f"{artist['name']} ({artist['followers']['total']} followers)"
-            self.artist_list.addItem(display_name)
-            self.artist_id_map[display_name] = artist['id']
-            artist_names.add(artist['name'])
-
-
-    def display_artist_albums(self, item):
-        artist_name = item.text()
-        artist_id = self.artist_id_map.get(artist_name)
-        if not artist_id:
-            logging.error(f"Artist ID for {artist_name} not found")
-            return
-
-        self.album_list.clear()
-        logging.info(f"Fetching albums for artist: {artist_name}")
-        self.albums_fetch_worker = Worker(self._fetch_artist_albums, artist_id)
-        self.albums_fetch_worker.finished.connect(self.on_albums_fetched)
-        self.albums_fetch_worker.start()
-
     def _fetch_artist_albums(self, artist_id):
         access_token = self.get_access_token()
         if not access_token:
@@ -2522,59 +2435,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to fetch albums for artist_id {artist_id}: {e}")
             return {"error": str(e)}
-
-    def on_albums_fetched(self, result):
-        QApplication.restoreOverrideCursor()
-        if "error" in result:
-            if result["error"] == "Authentication required":
-                # Don't show an error message here since we've already
-                # prompted the user via the signal/slot mechanism
-                logging.info("Authentication required for album fetch")
-                return
-            else:
-                logging.error(f"Error fetching albums: {result['error']}")
-                QMessageBox.warning(self, "Error", f"Failed to fetch albums: {result['error']}")
-                return
-
-        albums = result.get('items', [])
-        logging.info(f"Fetched {len(albums)} albums")
-        self.album_list.clear()
-        self.album_id_map.clear()
-
-        # Step 1: Group albums by name+year to detect duplicates
-        albums_by_name_year = {}
-        for album in albums:
-            # Get release year (first 4 chars of release_date)
-            year = album.get('release_date', '')[:4]
-            # Create a key combining name and year
-            name_year_key = f"{album['name']} - {year}"
-            if name_year_key not in albums_by_name_year:
-                albums_by_name_year[name_year_key] = []
-            albums_by_name_year[name_year_key].append(album)
-        
-        # Step 2: Add items to the list, with disambiguation text for duplicates
-        self.album_list.blockSignals(True)  # Block signals to minimize UI updates
-        
-        # Process albums in the original order to maintain the API's sort order
-        for album in albums:
-            year = album.get('release_date', '')[:4]
-            name_year_key = f"{album['name']} - {year}"
-            
-            # Check if we need disambiguation (if there are multiple albums with same name+year)
-            has_duplicates = len(albums_by_name_year[name_year_key]) > 1
-            
-            # Create appropriate display text
-            if has_duplicates:
-                album_type = album.get('album_type', '').title()
-                display_text = f"{album['name']} - {year} ({album_type})"
-            else:
-                display_text = f"{album['name']} - {year}"
-            
-            # Add to list and map
-            self.album_list.addItem(display_text)
-            self.album_id_map[display_text] = album['id']
-        
-        self.album_list.blockSignals(False)
 
     def fetch_album_details(self, item):
         album_text = item.text()

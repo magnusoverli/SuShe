@@ -693,20 +693,21 @@ QLabel[isAlbumLink="true"]:hover {
 }
 
 QPushButton#tab_add_button {
-    background-color: #1DB954;
-    border: none;
-    border-radius: 12px;
-    color: #121212;
+    background-color: transparent;
+    border: line;
+    color: #bbbbbb;  /* Light grey color */
     font-weight: bold;
-    font-size: 14pt;
+    font-size: 28pt;
+    padding: 0;
+    margin: 0;
 }
 
 QPushButton#tab_add_button:hover {
-    background-color: #1ED760;
+    color: #FFFFFF;
 }
 
 QPushButton#tab_add_button:pressed {
-    background-color: #169C46;
+    color: #777777;
 }
 
 /* Styling for the search dialog */
