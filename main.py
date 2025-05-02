@@ -1793,15 +1793,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                             f"Failed to start Spotify authentication: {e}")
 
     def on_spotify_auth_complete(self, success):
-        """
-        Handle Spotify authentication completion with improved error handling.
-        
-        Args:
-            success (bool): Whether authentication was successful
-        """
+        """Handle Spotify authentication completion."""
         logging.info(f"Spotify auth complete signal received, success={success}")
         
-        # First, handle the progress dialog
+        # Log token file location
+        tokens_path = self.get_user_data_path('spotify_tokens.json')
+        logging.info(f"Token file path: {tokens_path}")
+        
         if hasattr(self, 'auth_progress') and self.auth_progress:
             try:
                 self.auth_progress.close()
@@ -1810,7 +1808,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             finally:
                 self.auth_progress = None
         
-        # Then process the authentication result
         if success:
             if not hasattr(self, 'spotify_auth') or not self.spotify_auth.auth_code:
                 logging.error("Auth success reported but no auth code available")
@@ -1820,7 +1817,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             
             logging.info("Exchanging authorization code for tokens")
             
-            # Exchange code for tokens
+            # Log client ID being used
+            logging.info(f"Client ID being used: {self.spotify_auth.client_id}")
+            
             token_exchange_success = False
             try:
                 token_exchange_success = self.spotify_auth.exchange_code_for_tokens()
@@ -1831,26 +1830,17 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 return
             
             if token_exchange_success:
-                # Save tokens to user data folder
-                tokens_path = self.get_user_data_path('spotify_tokens.json')
-                token_save_success = False
+                logging.info("Token exchange successful")
+                # Log if tokens were saved successfully
+                token_save_success = self.spotify_auth.save_tokens(tokens_path)
+                logging.info(f"Token save success: {token_save_success}")
                 
-                try:
-                    token_save_success = self.spotify_auth.save_tokens(tokens_path)
-                except Exception as e:
-                    logging.error(f"Exception saving tokens: {e}")
-                    QMessageBox.warning(self, "Authentication Warning", 
-                                    f"Successfully authenticated but failed to save tokens: {e}")
-                
-                # Update UI - removed self.update_spotify_auth_status()
                 QMessageBox.information(self, "Success", "Successfully logged in to Spotify.")
-                
             else:
                 logging.error("Token exchange failed")
                 QMessageBox.warning(self, "Authentication Failed", 
                                 "Failed to obtain access tokens. Please try again.")
         else:
-            # Authentication failed
             logging.warning("Authentication failed")
             QMessageBox.warning(self, "Authentication Failed", 
                             "Failed to authenticate with Spotify. Please try again.")
@@ -2164,29 +2154,49 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def get_access_token(self):
         """Get a valid Spotify access token with proper expiration checking"""
-        # If we have a spotify_auth instance with a token, check if it's valid
-        if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
-            # Check if token is expired or about to expire (within 5 minutes)
-            current_time = int(time.time())
-            token_expiry = getattr(self.spotify_auth, 'token_expiry', 0)
-            time_to_expiry = token_expiry - current_time
+        logging.info("Attempting to get access token")
+        
+        # Log if we have a spotify_auth instance
+        has_spotify_auth = hasattr(self, 'spotify_auth')
+        logging.info(f"Has spotify_auth instance: {has_spotify_auth}")
+        
+        if hasattr(self, 'spotify_auth'):
+            has_access_token = hasattr(self.spotify_auth, 'access_token') and self.spotify_auth.access_token
+            logging.info(f"spotify_auth has access_token: {has_access_token}")
             
-            # Preemptively refresh token if it's about to expire
-            if time_to_expiry < 300:  # Less than 5 minutes to expiry
-                logging.info(f"Token expires in {time_to_expiry} seconds, refreshing")
-                if self.spotify_auth.refresh_token:
-                    if self.spotify_auth.refresh_access_token():
-                        tokens_path = self.get_user_data_path('spotify_tokens.json')
-                        self.spotify_auth.save_tokens(tokens_path)
-                        return self.spotify_auth.access_token
-            else:
-                # Token is still valid
-                return self.spotify_auth.access_token
+            if self.spotify_auth.access_token:
+                # Check if token is expired or about to expire (within 5 minutes)
+                current_time = int(time.time())
+                token_expiry = getattr(self.spotify_auth, 'token_expiry', 0)
+                time_to_expiry = token_expiry - current_time
+                
+                logging.info(f"Current time: {current_time}")
+                logging.info(f"Token expiry: {token_expiry}")
+                logging.info(f"Time to expiry: {time_to_expiry} seconds")
+                
+                # Preemptively refresh token if it's about to expire
+                if time_to_expiry < 300:  # Less than 5 minutes to expiry
+                    logging.info(f"Token expires in {time_to_expiry} seconds, refreshing")
+                    if self.spotify_auth.refresh_token:
+                        refresh_success = self.spotify_auth.refresh_access_token()
+                        logging.info(f"Token refresh result: {refresh_success}")
+                        if refresh_success:
+                            tokens_path = self.get_user_data_path('spotify_tokens.json')
+                            save_success = self.spotify_auth.save_tokens(tokens_path)
+                            logging.info(f"Token save result: {save_success}")
+                            return self.spotify_auth.access_token
+                    else:
+                        logging.warning("No refresh token available")
+                else:
+                    # Token is still valid
+                    return self.spotify_auth.access_token
         
         # Try loading saved tokens
         if not hasattr(self, 'spotify_auth') or not self.spotify_auth.access_token:
-            self.load_spotify_tokens()
-            
+            logging.info("Attempting to load saved tokens")
+            token_load_success = self.load_spotify_tokens()
+            logging.info(f"Token load result: {token_load_success}")
+                
         if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
             return self.spotify_auth.access_token
         
@@ -2262,10 +2272,48 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.info(f"Searching for artist: {artist_name}")
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
-            logging.info(f"Artist data fetched successfully for: {artist_name}")
             return response.json()
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                # Specific 403 error handling
+                logging.error("403 FORBIDDEN ERROR DETECTED")
+                logging.error(f"Response headers: {e.response.headers}")
+                logging.error(f"Response content: {e.response.text}")
+                
+                # Try to parse error message from Spotify
+                try:
+                    error_data = e.response.json()
+                    logging.error(f"Spotify error details: {error_data}")
+                except:
+                    pass
+                
+                # Check if it's a rate limiting issue
+                if 'rate' in e.response.text.lower():
+                    logging.error("Rate limiting detected!")
+                
+                # Check if it's an access token issue
+                if 'token' in e.response.text.lower():
+                    logging.error("Token validation issue detected!")
+                    
+                    # Force token refresh and retry
+                    if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:
+                        logging.info("Attempting forced token refresh after 403")
+                        if self.spotify_auth.refresh_access_token():
+                            tokens_path = self.get_user_data_path('spotify_tokens.json')
+                            self.spotify_auth.save_tokens(tokens_path)
+                            
+                            # Retry with new token
+                            new_access_token = self.spotify_auth.access_token
+                            new_headers = {"Authorization": f"Bearer {new_access_token}"}
+                            retry_response = requests.get(url, headers=new_headers, params=params)
+                            if retry_response.status_code == 200:
+                                logging.info("Retry with new token successful!")
+                                return retry_response.json()
+                
             logging.error(f"Failed to search for artist {artist_name}: {e}")
+            return {"error": str(e)}
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Request failed: {e}")
             return {"error": str(e)}
 
     def _fetch_artist_albums(self, artist_id):

@@ -568,15 +568,13 @@ class SpotifyAuth(QObject):
             return False
             
     def refresh_access_token(self):
-        """
-        Refresh the access token using the refresh token.
-        
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Refresh the access token using the refresh token."""
         if not self.refresh_token:
             logging.error("No refresh token available")
             return False
+            
+        logging.info("Attempting to refresh access token...")
+        logging.info(f"Refresh token (partial): {self.refresh_token[:10]}...{self.refresh_token[-10:] if len(self.refresh_token) > 20 else self.refresh_token}")
             
         token_url = "https://accounts.spotify.com/api/token"
         payload = {
@@ -586,32 +584,31 @@ class SpotifyAuth(QObject):
         }
         
         try:
-            # Use a longer timeout for token refresh
             response = requests.post(token_url, data=payload, timeout=15)
+            
+            logging.info(f"Token refresh response status: {response.status_code}")
+            logging.info(f"Token refresh response headers: {response.headers}")
             
             if response.status_code == 200:
                 tokens = response.json()
+                logging.info("Token refresh successful")
+                logging.info(f"Response contains: {list(tokens.keys())}")
+                
                 self.access_token = tokens.get("access_token")
-                # Set the new expiration time (Spotify tokens expire in 3600 seconds/1 hour)
                 self.token_expiry = int(time.time()) + tokens.get("expires_in", 3600)
                 
-                # Some APIs return a new refresh token, save it if provided
                 if "refresh_token" in tokens:
                     self.refresh_token = tokens.get("refresh_token")
-                
-                # Log refreshed token (partially masked)
-                access_token_masked = f"{self.access_token[:5]}...{self.access_token[-5:]}" if self.access_token else None
-                logging.info(f"Refreshed access token: {access_token_masked}, expires at: {self.token_expiry}")
+                    logging.info("New refresh token received")
+                else:
+                    logging.info("No new refresh token received, keeping existing one")
                 
                 return True
             else:
                 logging.error(f"Token refresh failed: {response.status_code} - {response.text}")
                 return False
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Request exception during token refresh: {e}")
-            return False
         except Exception as e:
-            logging.error(f"Unexpected exception during token refresh: {e}")
+            logging.error(f"Exception during token refresh: {e}")
             return False
 
     def save_tokens(self, path):
@@ -662,15 +659,7 @@ class SpotifyAuth(QObject):
             return False
             
     def load_tokens(self, path):
-        """
-        Load access and refresh tokens from a file.
-        
-        Args:
-            path (str): Path to load the tokens from
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Load access and refresh tokens from a file."""
         if not os.path.exists(path):
             logging.warning(f"Token file not found: {path}")
             return False
@@ -683,31 +672,40 @@ class SpotifyAuth(QObject):
             self.refresh_token = data.get("refresh_token")
             self.token_expiry = data.get("expires_at", 0)
             
+            # Enhanced logging
+            logging.info(f"Loading tokens from: {path}")
+            logging.info(f"Token file exists: {os.path.exists(path)}")
+            logging.info(f"Token file size: {os.path.getsize(path)} bytes")
+            logging.info(f"Access token loaded: {'yes' if self.access_token else 'no'}")
+            logging.info(f"Refresh token loaded: {'yes' if self.refresh_token else 'no'}")
+            
+            if self.access_token:
+                logging.info(f"Access token (partial): {self.access_token[:10]}...{self.access_token[-10:] if len(self.access_token) > 20 else self.access_token}")
+            
             # Check if tokens were loaded successfully
             if not self.access_token or not self.refresh_token:
-                logging.error("Invalid token file format")
+                logging.error(f"Invalid token file format. Contents: {data}")
                 return False
                 
             # Check if token is already expired
             current_time = int(time.time())
             if current_time >= self.token_expiry:
-                logging.info("Loaded token is already expired, attempting refresh")
+                logging.info(f"Loaded token is already expired. Current time: {current_time}, Expiry: {self.token_expiry}")
                 if self.refresh_access_token():
-                    # If refresh successful, save the updated tokens
                     self.save_tokens(path)
                     return True
                 else:
                     logging.warning("Failed to refresh expired token")
                     return False
             
-            # Log token info (partially masked)
-            access_token_masked = f"{self.access_token[:5]}...{self.access_token[-5:]}" if self.access_token else None
+            # Log token info
             time_to_expiry = self.token_expiry - current_time
-            logging.info(f"Loaded valid token: {access_token_masked} (expires in {time_to_expiry} seconds)")
+            logging.info(f"Loaded valid token (expires in {time_to_expiry} seconds)")
             
             return True
-        except json.JSONDecodeError:
-            logging.error(f"Invalid JSON in token file: {path}")
+        except json.JSONDecodeError as e:
+            logging.error(f"Invalid JSON in token file: {path}. Error: {e}")
+            logging.error(f"Token file contents: {open(path, 'r').read()}")
             return False
         except Exception as e:
             logging.error(f"Failed to load tokens: {e}")
