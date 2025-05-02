@@ -1,0 +1,285 @@
+/* settings_style.qss - Dedicated stylesheet for Settings Dialog */
+
+/* Main Dialog */
+QDialog#settings_dialog {
+    background-color: #121212;
+    color: #FFFFFF;
+}
+
+/* Header */
+QLabel#settings_header {
+    font-size: 24pt;
+    font-weight: bold;
+    color: #FFFFFF;
+    margin-bottom: 16px;
+    padding-left: 4px;
+}
+
+/* Settings Groups */
+QGroupBox#settings_group {
+    border: 1px solid #333333;
+    border-radius: 8px;
+    margin-top: 16px;
+    padding: 12px;
+    background-color: #181818;
+}
+
+QGroupBox#settings_group::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 8px;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: 13pt;
+    left: 12px;
+    top: -8px;
+}
+
+/* Form Layout Labels */
+QGroupBox#settings_group QFormLayout QLabel {
+    color: #B3B3B3;
+    font-weight: 500;
+    padding: 2px 0;
+}
+
+/* Authentication Status */
+QLabel#auth_status {
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    margin-top: 4px;
+    background-color: rgba(45, 45, 48, 0.7);
+    border: 1px solid transparent;
+}
+
+QLabel#auth_status[logged_in="false"] {
+    background-color: rgba(255, 50, 50, 0.1);
+    color: #FF6B6B;
+    border: 1px solid rgba(255, 50, 50, 0.2);
+}
+
+QLabel#auth_status[logged_in="true"] {
+    background-color: rgba(29, 185, 84, 0.1);
+    color: #1DB954;
+    border: 1px solid rgba(29, 185, 84, 0.2);
+}
+
+/* Input Fields */
+QLineEdit#settings_input {
+    background-color: #282828;
+    border: 1px solid #444444;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #FFFFFF;
+    min-height: 24px;
+    font-size: 11pt;
+}
+
+QLineEdit#settings_input:focus {
+    border: 1px solid #1DB954;
+    background-color: #2E2E2E;
+}
+
+QLineEdit#settings_input:hover:!focus {
+    background-color: #2A2A2A;
+}
+
+/* Primary Button */
+QPushButton#primary_button {
+    background-color: #1DB954;
+    color: #121212;
+    border: none;
+    padding: 8px 24px;
+    border-radius: 20px;
+    font-weight: bold;
+    min-width: 140px;
+    min-height: 32px;
+    font-size: 11pt;
+}
+
+QPushButton#primary_button:hover {
+    background-color: #1ED760;
+}
+
+QPushButton#primary_button:pressed {
+    background-color: #169C46;
+}
+
+QPushButton#primary_button:disabled {
+    background-color: #535353;
+    color: #B3B3B3;
+}
+
+/* Secondary Button */
+QPushButton#secondary_button {
+    background-color: transparent;
+    color: #FFFFFF;
+    border: 1px solid #555555;
+    padding: 8px 24px;
+    border-radius: 20px;
+    font-weight: bold;
+    min-width: 140px;
+    min-height: 32px;
+    font-size: 11pt;
+}
+
+QPushButton#secondary_button:hover {
+    background-color: #282828;
+    border: 1px solid #777777;
+}
+
+QPushButton#secondary_button:pressed {
+    background-color: #222222;
+}
+
+QPushButton#secondary_button:disabled {
+    background-color: transparent;
+    color: #666666;
+    border: 1px solid #444444;
+}
+
+/* Save Button */
+QPushButton#save_button {
+    background-color: #1DB954;
+    color: #121212;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 16px;
+    font-weight: bold;
+    min-width: 100px;
+    min-height: 28px;
+    font-size: 10.5pt;
+}
+
+QPushButton#save_button:hover {
+    background-color: #1ED760;
+}
+
+QPushButton#save_button:pressed {
+    background-color: #169C46;
+}
+
+/* Close Button */
+QPushButton#close_button {
+    background-color: transparent;
+    color: #FFFFFF;
+    border: 1px solid #555555;
+    padding: 8px 32px;
+    border-radius: 20px;
+    font-weight: bold;
+    min-width: 140px;
+    min-height: 32px;
+    font-size: 11pt;
+}
+
+QPushButton#close_button:hover {
+    background-color: #282828;
+    border: 1px solid #777777;
+}
+
+QPushButton#close_button:pressed {
+    background-color: #222222;
+}
+
+/* Scroll Area */
+QScrollArea#settings_scroll_area {
+    border: none;
+    background-color: transparent;
+}
+
+QScrollArea#settings_scroll_area > QWidget > QWidget {
+    background-color: transparent;
+}
+
+/* Scrollbar Styling */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #555555;
+    border-radius: 4px;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #666666;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    height: 0;
+    background: transparent;
+}
+
+/* ComboBox in Settings */
+QComboBox#settings_combo {
+    background-color: #282828;
+    border: 1px solid #444444;
+    border-radius: 4px;
+    padding: 8px 28px 8px 12px;
+    color: white;
+    selection-background-color: #1DB954;
+    min-height: 24px;
+    min-width: 160px;
+    font-size: 11pt;
+}
+
+QComboBox#settings_combo:hover {
+    background-color: #2A2A2A;
+    border: 1px solid #555555;
+}
+
+QComboBox#settings_combo:focus {
+    border: 1px solid #1DB954;
+}
+
+QComboBox#settings_combo::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 20px;
+    background-color: transparent;
+    border-left: none;
+    margin-right: 4px;
+}
+
+QComboBox#settings_combo::down-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid #AAAAAA;
+    margin-top: 2px;
+}
+
+QComboBox#settings_combo:hover::down-arrow {
+    border-top: 4px solid #FFFFFF;
+}
+
+QComboBox#settings_combo QAbstractItemView {
+    border: 1px solid #555555;
+    background-color: #282828;
+    color: white;
+    selection-background-color: #333333;
+    outline: none;
+    border-radius: 4px;
+}
+
+QComboBox#settings_combo QAbstractItemView::item {
+    min-height: 28px;
+    padding: 6px 8px;
+}
+
+QComboBox#settings_combo QAbstractItemView::item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+QComboBox#settings_combo QAbstractItemView::item:selected {
+    background-color: rgba(29, 185, 84, 0.2);
+    color: #FFFFFF;
+}
