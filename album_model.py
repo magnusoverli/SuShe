@@ -194,20 +194,7 @@ class AlbumModel(QAbstractTableModel):
         self.layoutChanged.emit()
         
         return True
-    
-    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
-        """Sort album data by the specified column."""
-        self.beginResetModel()
-        
-        key = self.get_column_key(column)
-        reverse = (order == Qt.SortOrder.DescendingOrder)
-        
-        # Don't sort by cover image column
-        if column != self.COVER_IMAGE:
-            self.album_data.sort(key=lambda x: str(x.get(key, "")), reverse=reverse)
-        
-        self.endResetModel()
-    
+
     def get_column_key(self, column):
         """Convert column index to album data dictionary key."""
         mapping = {

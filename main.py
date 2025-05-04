@@ -2239,24 +2239,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         
         return None
 
-    def _refresh_token(self):
-        """Worker function to refresh token"""
-        if self.spotify_auth.refresh_access_token():
-            tokens_path = self.get_user_data_path('spotify_tokens.json')
-            self.spotify_auth.save_tokens(tokens_path)
-            return True
-        return False
-
-    def on_token_refreshed(self, success):
-        """Handle token refresh completion"""
-        if success:
-            logging.info("Spotify token refreshed successfully")
-            # You might want to retry the operation that needed the token
-        else:
-            logging.warning("Failed to refresh Spotify token")
-            # Handle failed refresh - may need to prompt for login again
-            self.spotify_auth.access_token = None
-
     def _search_artist(self, artist_name):
         access_token = self.get_access_token()
         if not access_token:
