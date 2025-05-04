@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QPalette, QColor, QPolygon, QImage, QPixmap
 from PyQt6.QtCore import Qt, QRectF, QRect, QPointF, QPoint
 import logging
-import re
 from html import unescape
 import base64
 

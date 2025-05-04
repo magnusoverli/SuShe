@@ -1,9 +1,9 @@
 # main.py
 
-from PyQt6.QtWidgets import (QDialog, QMenu, QGroupBox, QFileDialog, QComboBox, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QListWidget, QMessageBox,
+from PyQt6.QtWidgets import (QDialog, QMenu, QFileDialog, QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QLineEdit, QPushButton, QMessageBox,
                              QProgressDialog, QAbstractItemView, QHeaderView, QTableView,)
-from PyQt6.QtGui import QAction, QIcon, QPixmap, QDropEvent, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
+from PyQt6.QtGui import QAction, QIcon, QPixmap, QFont, QDesktopServices, QPen, QColor, QPainter, QDrag, QCursor
 from PyQt6.QtCore import (Qt, QFile, QTextStream, QIODevice, pyqtSignal, QThread, QTimer, QObject, QUrl, QItemSelectionModel, QPoint,
                           QParallelAnimationGroup, QByteArray, QBuffer, QAbstractAnimation, QPropertyAnimation, QEasingCurve, QRect)
 from datetime import datetime
