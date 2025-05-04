@@ -2618,24 +2618,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.warning(f"Error checking if Spotify is installed: {e}")
             return False  # Assume not installed if check fails
 
-    def add_album_from_track(self, track_id: str):
-        # Fetch the track's details to get the associated album ID
-        access_token = self.get_access_token()  # Assuming you have this method
-        if not access_token:
-            print("Failed to obtain access token")
-            return
-
-        track_url = f"https://api.spotify.com/v1/tracks/{track_id}"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.get(track_url, headers=headers)
-        if response.status_code == 200:
-            album_id = response.json()['album']['id']
-            self.fetch_album_details_by_id(album_id)  # Fetch and add the album details
-        else:
-            print("Failed to fetch track details")
-        self.dataChanged = True
-        self.update_window_title()
-
     def show_context_menu(self, position):
         """Show context menu for album table with improved URL handling."""
         context_menu = QMenu(self)
