@@ -76,34 +76,6 @@ class SpotifyAuth(QObject):
             # If we get here, we couldn't find an available port
             logging.error("Could not find an available port for the callback server")
 
-    def verify_port_available(self):
-        """Verify that we can bind to a port before attempting auth flow"""
-        try:
-            # First check if default port is available
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            s.bind(('localhost', self.redirect_port))
-            s.close()
-            return True
-        except OSError:
-            # Default port unavailable, try to find another
-            for port in range(self.redirect_port + 1, self.redirect_port + 20):
-                try:
-                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    s.settimeout(1)
-                    s.bind(('localhost', port))
-                    s.close()
-                    self.redirect_port = port
-                    self.redirect_uri = f"http://localhost:{port}/callback"
-                    logging.info(f"Found available port {port}")
-                    return True
-                except OSError:
-                    continue
-            
-            # If we get here, we couldn't find an available port
-            logging.error("Could not find an available port for the callback server")
-            return False
-
     def generate_code_verifier(self):
         """Generate a random code verifier string for PKCE."""
         code_verifier = ''.join(random.choice(string.ascii_letters + string.digits + "-._~") for _ in range(64))

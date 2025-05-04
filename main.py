@@ -30,7 +30,7 @@ from workers import DownloadWorker, Worker
 from menu_bar import MenuBar
 
 from delegates import (
-    ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, strip_html_tags, CoverImageDelegate
+    ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, CoverImageDelegate
 )
 
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -1672,13 +1672,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.album_list_layout = layout  # Store the layout
         self.album_list_tab.setLayout(self.album_list_layout)
 
-    def on_sort_order_changed(self, column, order):
-        # Don't use self.album_table.horizontalHeaderItem(column).text()
-        # Use the model's column names instead
-        column_name = self.album_model.COLUMN_NAMES[column]
-        order_str = 'ascending' if order == Qt.SortOrder.AscendingOrder else 'descending'
-        logging.info(f"Album table sorted by column '{column_name}' in {order_str} order")
-
     def set_album_table_column_widths(self):
         """Set and lock column widths with proper header alignment."""
         # First, disable last section stretch to prevent automatic width adjustments
@@ -1952,19 +1945,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 # Removed self.update_spotify_auth_status()
                 return True
         return False
-
-    def load_config_section(self, section_name):
-        config_path = resource_path('config.json')
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as file:
-                    config = json.load(file)
-                return config.get(section_name, {})
-            else:
-                return {}
-        except json.JSONDecodeError as e:
-            logging.error(f"Error parsing config.json: {e}")
-            return {}
 
     def save_config_section(self, section_name, data):
         config_path = resource_path('config.json')
@@ -2468,21 +2448,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.show_notification(f"Added album '{album_name}'")
             else:
                 logging.error("Failed to download the album cover image.")
-
-    def process_spotify_uri(self, uri: str):
-        logging.info(f"Processing Spotify URI: {uri}")
-        # Check if it's a valid Spotify URI for a track or an album
-        if "open.spotify.com/track/" in uri:
-            track_id = uri.split("track/")[1].split("?")[0]  # Extract the track ID
-            logging.info(f"Detected track URI. Track ID: {track_id}")
-            self.add_album_from_track(track_id)
-        elif "open.spotify.com/album/" in uri:
-            album_id = uri.split("album/")[1].split("?")[0]  # Extract the album ID
-            logging.info(f"Detected album URI. Album ID: {album_id}")
-            self.fetch_album_details_by_id(album_id)
-        else:
-            logging.warning(f"Unsupported Spotify URI: {uri}")
-            QMessageBox.warning(self, "Unsupported URI", "The Spotify URI is not supported.")
 
     def get_album_url(self, album_id, artist_name, album_name):
         """

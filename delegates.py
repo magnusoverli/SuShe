@@ -11,20 +11,6 @@ import re
 from html import unescape
 import base64
 
-
-def strip_html_tags(text):
-    """
-    Removes HTML tags from the given text and unescapes HTML entities.
-    
-    Args:
-        text (str): The text containing HTML tags.
-    
-    Returns:
-        str: The cleaned text without HTML tags.
-    """
-    clean = re.compile('<.*?>')
-    return unescape(re.sub(clean, '', text))
-
 class CoverImageDelegate(QStyledItemDelegate):
     """
     Delegate for rendering cover images in the album table view.

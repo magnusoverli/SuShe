@@ -1627,23 +1627,6 @@ class SettingsDialog(QDialog):
         else:
             logging.warning(f"Settings stylesheet not found at {settings_style_path}.")
 
-    def update_spotify_auth_status(self):
-        """Update the Spotify authentication status display"""
-        if self._parent and hasattr(self._parent, 'spotify_auth') and self._parent.spotify_auth.access_token:
-            self.spotify_auth_status.setText("✓ Connected to Spotify")
-            self.spotify_auth_status.setProperty("logged_in", True)
-            self.spotify_login_button.setEnabled(False)
-            self.spotify_logout_button.setEnabled(True)
-        else:
-            self.spotify_auth_status.setText("⚠ Not connected to Spotify")
-            self.spotify_auth_status.setProperty("logged_in", False)
-            self.spotify_login_button.setEnabled(True)
-            self.spotify_logout_button.setEnabled(False)
-        
-        # Force style refresh
-        self.spotify_auth_status.style().unpolish(self.spotify_auth_status)
-        self.spotify_auth_status.style().polish(self.spotify_auth_status)
-    
     def login_to_spotify(self):
         """Delegate to parent's login method"""
         if self._parent and hasattr(self._parent, 'login_to_spotify'):
