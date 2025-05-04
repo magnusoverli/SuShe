@@ -2291,14 +2291,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             logging.error(f"Failed to fetch albums for artist_id {artist_id}: {e}")
             return {"error": str(e)}
 
-    def fetch_album_details(self, item):
-        album_text = item.text()
-        album_id = self.album_id_map.get(album_text)
-        if not album_id:
-            logging.error(f"Album ID for {album_text} not found")
-            return
-        self.fetch_album_details_by_id(album_id)
-
     def fetch_album_details_by_id(self, album_id: str):
         def fetch_data():
             access_token = self.get_access_token()
