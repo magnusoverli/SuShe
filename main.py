@@ -2220,6 +2220,7 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             self.auth_required_signal.emit()
             return None
 
+
     def show_auth_required_and_get_token(self):
         """Shows auth dialog and returns token if successful"""
         logging.info("Showing auth required dialog and getting token")
@@ -2270,13 +2271,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         }
         try:
             logging.info(f"Searching for artist: {artist_name}")
+            logging.info(f"Request URL: {url}")
+            logging.info(f"Request headers: {headers}")
+            logging.info(f"Request params: {params}")
+            
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
+            logging.info(f"Artist data fetched successfully for: {artist_name}")
             return response.json()
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 403:
                 # Specific 403 error handling
                 logging.error("403 FORBIDDEN ERROR DETECTED")
+                logging.error(f"Response status code: {e.response.status_code}")
                 logging.error(f"Response headers: {e.response.headers}")
                 logging.error(f"Response content: {e.response.text}")
                 
@@ -2285,8 +2292,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                     error_data = e.response.json()
                     logging.error(f"Spotify error details: {error_data}")
                 except:
-                    pass
-                
+                    logging.error("Could not parse error response as JSON")
+                    
                 # Check if it's a rate limiting issue
                 if 'rate' in e.response.text.lower():
                     logging.error("Rate limiting detected!")
@@ -2295,21 +2302,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 if 'token' in e.response.text.lower():
                     logging.error("Token validation issue detected!")
                     
-                    # Force token refresh and retry
-                    if hasattr(self, 'spotify_auth') and self.spotify_auth.refresh_token:
-                        logging.info("Attempting forced token refresh after 403")
-                        if self.spotify_auth.refresh_access_token():
-                            tokens_path = self.get_user_data_path('spotify_tokens.json')
-                            self.spotify_auth.save_tokens(tokens_path)
-                            
-                            # Retry with new token
-                            new_access_token = self.spotify_auth.access_token
-                            new_headers = {"Authorization": f"Bearer {new_access_token}"}
-                            retry_response = requests.get(url, headers=new_headers, params=params)
-                            if retry_response.status_code == 200:
-                                logging.info("Retry with new token successful!")
-                                return retry_response.json()
-                
             logging.error(f"Failed to search for artist {artist_name}: {e}")
             return {"error": str(e)}
         except requests.exceptions.RequestException as e:
