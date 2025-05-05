@@ -104,7 +104,7 @@ class SpotifyAuth(QObject):
             "code_challenge_method": "S256",
             "code_challenge": code_challenge,
             "state": state,
-            "scope": "user-read-private user-library-read",
+            "scope": "user-read-private user-library-read user-modify-playback-state user-read-playback-state user-read-currently-playing streaming",
             # Add timestamp to prevent caching
             "_": int(time.time())
         }

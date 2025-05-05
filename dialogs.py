@@ -1610,6 +1610,42 @@ class SettingsDialog(QDialog):
         # Update Spotify auth status when dialog opens
         self.update_spotify_auth_status()
 
+        player_group = QGroupBox("Spotify Connect Player")
+        player_group.setObjectName("settings_group")
+        player_layout = QFormLayout(player_group)
+        player_layout.setSpacing(12)
+        player_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        player_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        player_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        player_layout.setContentsMargins(20, 24, 20, 20)
+        
+        # Auto-connect checkbox
+        autoconnect_label = QLabel("Auto-connect on startup:")
+        self.autoconnect_checkbox = QCheckBox()
+        if hasattr(self._parent, 'player_autoconnect') and self._parent.player_autoconnect:
+            self.autoconnect_checkbox.setChecked(True)
+        player_layout.addRow(autoconnect_label, self.autoconnect_checkbox)
+        
+        # Save Player Settings Button
+        save_player_button = QPushButton("Save Player Settings")
+        save_player_button.setObjectName("save_button")
+        save_player_button.clicked.connect(self.save_player_settings)
+        player_layout.addRow("", save_player_button)
+        
+        scroll_layout.addWidget(player_group)
+        
+    def save_player_settings(self):
+        """Save player settings."""
+        player_settings = {
+            "autoconnect": self.autoconnect_checkbox.isChecked()
+        }
+        try:
+            self._parent.save_config_section('player', player_settings)
+            self._parent.player_autoconnect = player_settings["autoconnect"]
+            QMessageBox.information(self, "Success", "Player settings saved successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save player settings. Details: {e}")
+
     def load_settings_stylesheet(self):
         """Load the dedicated settings stylesheet"""
         from main import resource_path  # Import the resource_path function

@@ -733,3 +733,119 @@ QDialog[SearchDialog] QListWidget::item:hover {
 QDialog[SearchDialog] QListWidget::item:selected {
     background-color: #333333;
 }
+
+/* Add compact player specific styles */
+
+CompactPlayer {
+    background-color: #181818;
+    border-top: 1px solid #333333;
+}
+
+QPushButton#compact_prev_btn, QPushButton#compact_next_btn {
+    background-color: transparent;
+    border: none;
+    border-radius: 16px;
+    color: #B3B3B3;
+    font-size: 14pt;
+}
+
+QPushButton#compact_prev_btn:hover, QPushButton#compact_next_btn:hover {
+    background-color: #282828;
+    color: #FFFFFF;
+}
+
+QPushButton#compact_play_pause_btn {
+    background-color: #1DB954;
+    border-radius: 20px;
+    color: #000000;
+    font-weight: bold;
+    font-size: 18pt;
+}
+
+QPushButton#compact_play_pause_btn:hover {
+    background-color: #1ED760;
+}
+
+QSlider#progress_slider::groove:horizontal {
+    height: 4px;
+    background: #535353;
+    border-radius: 2px;
+}
+
+QSlider#progress_slider::handle:horizontal {
+    background: #FFFFFF;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin: -4px 0;
+    border-radius: 6px;
+}
+
+QSlider#progress_slider::handle:horizontal:hover {
+    background: #1DB954;
+}
+
+QSlider#progress_slider::sub-page:horizontal {
+    background: #1DB954;
+    border-radius: 2px;
+}
+
+QSlider#volume_slider::groove:horizontal {
+    height: 4px;
+    background: #535353;
+    border-radius: 2px;
+}
+
+QSlider#volume_slider::handle:horizontal {
+    background: #FFFFFF;
+    border: none;
+    width: 10px;
+    height: 10px;
+    margin: -3px 0;
+    border-radius: 5px;
+}
+
+QSlider#volume_slider::handle:horizontal:hover {
+    background: #1DB954;
+}
+
+QSlider#volume_slider::sub-page:horizontal {
+    background: #B3B3B3;
+    border-radius: 2px;
+}
+
+QComboBox#compact_device_combo {
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #333333;
+    color: #FFFFFF;
+    border: 1px solid #535353;
+}
+
+QComboBox#compact_device_combo:hover {
+    background-color: #3A3A3A;
+}
+
+QComboBox#compact_device_combo::drop-down {
+    border: none;
+}
+
+QComboBox#compact_device_combo QAbstractItemView {
+    background-color: #282828;
+    selection-background-color: #333333;
+    color: #FFFFFF;
+    border: 1px solid #535353;
+}
+
+QPushButton#compact_connect_btn {
+    background-color: #333333;
+    color: #FFFFFF;
+    border-radius: 16px;
+    padding: 8px 16px;
+    border: 1px solid #535353;
+}
+
+QPushButton#compact_connect_btn:hover {
+    background-color: #1DB954;
+    color: #000000;
+}

@@ -32,6 +32,9 @@ from menu_bar import MenuBar
 from delegates import (
     ComboBoxDelegate, SearchHighlightDelegate, GenreSearchDelegate, CoverImageDelegate
 )
+from spotify_player import SpotifyPlayer, CompactPlayer
+from spotify_player.player_workers import SpotifyPlayerWorker
+
 
 def handle_exception(exc_type, exc_value, exc_traceback):
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
@@ -687,6 +690,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.webhook_url = ""
         self.show_positions = True
 
+        self.spotify_player = None
+        self.compact_player = None
+        self.player_worker = None
+        self.player_enabled = False
+
         # Initialize search-related variables
         self.matches = []
         self.current_match_index = -1
@@ -744,8 +752,38 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.genres = read_file_lines('genres.txt', transform=lambda lines: {line.title() for line in lines})
         self.countries = read_file_lines('countries.txt')
         
-        self.setup_tabs()
-
+        # Create central widget container
+        central_widget = QWidget()
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Add album list
+        self.setup_album_list()
+        main_layout.addWidget(self.album_table)
+        
+        # Add compact player
+        self.compact_player = CompactPlayer()
+        self.compact_player.setVisible(False)  # Hidden by default
+        
+        # Connect compact player signals
+        self.compact_player.play_pause_requested.connect(self.on_play_pause_requested)
+        self.compact_player.next_track_requested.connect(self.on_next_track_requested)
+        self.compact_player.previous_track_requested.connect(self.on_previous_track_requested)
+        self.compact_player.device_change_requested.connect(self.on_device_change_requested)
+        self.compact_player.volume_change_requested.connect(self.on_volume_change_requested)
+        self.compact_player.seek_requested.connect(self.on_seek_requested)
+        self.compact_player.album_click_requested.connect(self.on_album_art_click)
+        
+        # Add the missing connection for the connect button
+        self.compact_player.connect_btn.clicked.connect(self.toggle_player_connection)
+        
+        main_layout.addWidget(self.compact_player)
+        
+        # Set central widget
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+        
         # Add a QLabel for notifications
         self.notification_label = QLabel(self)
         self.notification_label.setStyleSheet(
@@ -1440,40 +1478,170 @@ class SpotifyAlbumAnalyzer(QMainWindow):
     def close_application(self):
         self.close()
 
-    def setup_tabs(self):
-        from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
-        from PyQt6.QtCore import Qt
+    def toggle_player_connection(self):
+        """Toggle Spotify Connect player connection."""
+        if not self.spotify_player:
+            # Initialize player
+            if not hasattr(self, 'spotify_auth') or not self.spotify_auth.access_token:
+                self.login_to_spotify()
+                return
+                
+            self.spotify_player = SpotifyPlayer(self)
+            self.compact_player.setVisible(True)
+            self.compact_player.connect_btn.setText("Disconnect")
+            
+            # Enable all controls once connected
+            self.compact_player.prev_btn.setEnabled(True)
+            self.compact_player.play_pause_btn.setEnabled(True)
+            self.compact_player.next_btn.setEnabled(True)
+            self.compact_player.progress_slider.setEnabled(True)
+            self.compact_player.volume_slider.setEnabled(True)
+            self.compact_player.device_combo.setEnabled(True)
+            
+            # Start polling for playback state
+            self.player_worker = SpotifyPlayerWorker(self.spotify_player, "get_playback_state")
+            self.player_worker.playback_state_updated.connect(self.on_playback_state_updated)
+            self.player_worker.error_occurred.connect(self.on_player_error)
+            self.player_worker.start()
+            
+            # Get initial device list
+            device_worker = SpotifyPlayerWorker(self.spotify_player, "get_devices")
+            device_worker.devices_updated.connect(self.on_devices_updated)
+            device_worker.start()
+            
+        else:
+            # Disconnect player
+            if self.player_worker:
+                self.player_worker.stop()
+                self.player_worker.wait()
+                self.player_worker = None
+                
+            self.spotify_player = None
+            self.compact_player.reset_ui()
+            
+            # Disable controls when disconnected
+            self.compact_player.prev_btn.setEnabled(False)
+            self.compact_player.play_pause_btn.setEnabled(False)
+            self.compact_player.next_btn.setEnabled(False)
+            self.compact_player.progress_slider.setEnabled(False)
+            self.compact_player.volume_slider.setEnabled(False)
+            self.compact_player.device_combo.setEnabled(False)
+            
+            # Keep connect button enabled
+            self.compact_player.connect_btn.setText("Connect")
+            self.compact_player.connect_btn.setEnabled(True)
+            
+            # Hide the player
+            self.compact_player.setVisible(False)
+            
+    def on_playback_state_updated(self, state):
+        """Handle playback state updates."""
+        self.compact_player.update_playback_state(state)
         
-        self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
-
-        # Create tab (only album list)
-        self.album_list_tab = QWidget()
-
-        # Add tab (only album list)
-        self.tabs.addTab(self.album_list_tab, "Album List")
-
-        # Add "+" button to the right of the tab bar
-        # Create a widget to host the button
-        corner_widget = QWidget()
-        corner_layout = QHBoxLayout(corner_widget)
-        corner_layout.setContentsMargins(0, 0, 5, 0)
-        corner_layout.setSpacing(0)
+        if state:
+            self.compact_player.setEnabled(True)
+        else:
+            # Keep player visible but show inactive state
+            self.compact_player.setEnabled(True)
+    
+    def on_devices_updated(self, devices):
+        """Handle device list updates."""
+        self.compact_player.update_device_list(devices)
         
-        # Create "+" icon button
-        self.add_button = QPushButton()
-        self.add_button.setFixedSize(28, 28)
-        self.add_button.setObjectName("tab_add_button")
-        self.add_button.setToolTip("Add album")
-        self.add_button.setText("+")
-        self.add_button.clicked.connect(self.open_search_dialog)
-        corner_layout.addWidget(self.add_button)
+    def on_player_error(self, error):
+        """Handle player errors."""
+        logging.error(f"Player error: {error}")
+        # Show error in status bar instead of replacing player UI
+        self.statusBar().showMessage(f"Player error: {error}", 5000)
         
-        # Set the corner widget
-        self.tabs.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
-
-        # Setup tab content (only album list)
-        self.setup_album_list_tab()
+    def on_play_pause_requested(self):
+        """Handle play/pause button click."""
+        if not self.spotify_player:
+            return
+            
+        device_id = self.compact_player.current_device_id
+        if self.compact_player.is_playing:
+            worker = SpotifyPlayerWorker(self.spotify_player, "pause", device_id=device_id)
+        else:
+            worker = SpotifyPlayerWorker(self.spotify_player, "play", device_id=device_id)
+            
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("play/pause", success))
+        worker.start()
+        
+    def on_next_track_requested(self):
+        """Handle next track button click."""
+        if not self.spotify_player:
+            return
+            
+        worker = SpotifyPlayerWorker(self.spotify_player, "next_track", 
+                                   device_id=self.compact_player.current_device_id)
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("next track", success))
+        worker.start()
+        
+    def on_previous_track_requested(self):
+        """Handle previous track button click."""
+        if not self.spotify_player:
+            return
+            
+        worker = SpotifyPlayerWorker(self.spotify_player, "previous_track", 
+                                   device_id=self.compact_player.current_device_id)
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("previous track", success))
+        worker.start()
+        
+    def on_device_change_requested(self, device_id):
+        """Handle device change."""
+        if not self.spotify_player:
+            return
+            
+        worker = SpotifyPlayerWorker(self.spotify_player, "transfer_playback", device_id=device_id)
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("transfer playback", success))
+        worker.start()
+        
+    def on_volume_change_requested(self, volume):
+        """Handle volume change."""
+        if not self.spotify_player:
+            return
+            
+        worker = SpotifyPlayerWorker(self.spotify_player, "set_volume", 
+                                   volume_percent=volume, 
+                                   device_id=self.compact_player.current_device_id)
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("volume change", success))
+        worker.start()
+        
+    def on_seek_requested(self, position_ms):
+        """Handle seek request."""
+        if not self.spotify_player:
+            return
+            
+        worker = SpotifyPlayerWorker(self.spotify_player, "seek", 
+                                   position_ms=position_ms, 
+                                   device_id=self.compact_player.current_device_id)
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("seek", success))
+        worker.start()
+        
+    def on_album_art_click(self, album_id):
+        """Handle clicks on album art in compact player."""
+        if not self.spotify_player or not album_id:
+            return
+            
+        # Play the album that's currently displayed
+        worker = SpotifyPlayerWorker(self.spotify_player, "play", 
+                                   context_uri=f"spotify:album:{album_id}",
+                                   device_id=self.compact_player.current_device_id)
+        worker.operation_completed.connect(lambda success: self.handle_operation_result("play album", success))
+        worker.start()
+        
+    def handle_operation_result(self, operation, success):
+        """Handle the result of player operations."""
+        if not success:
+            logging.error(f"Failed to {operation}")
+            self.statusBar().showMessage(f"Failed to {operation}", 5000)
+            
+    def toggle_player_visibility(self):
+        """Toggle compact player visibility."""
+        if self.compact_player:
+            is_visible = self.compact_player.isVisible()
+            self.compact_player.setVisible(not is_visible)
 
     def open_search_dialog(self):
         """Opens a dialog for searching albums"""
@@ -1573,6 +1741,95 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             except Exception as e:
                 logging.error(f"Failed to import config: {e}")
                 QMessageBox.critical(self, "Import Failed", f"Failed to import config: {e}")
+
+    def setup_album_list(self):
+        """Initialize the album list table."""
+        # Create custom TableView
+        self.album_table = DragDropTableView()
+        
+        # Create and set the model
+        self.album_model = AlbumModel(self)
+        self.album_table.setModel(self.album_model)
+        
+        # Enable alternating row colors for better readability
+        self.album_table.setAlternatingRowColors(True)
+        
+        # Configure the view for drag and drop
+        self.album_table.setDragEnabled(True)
+        self.album_table.setAcceptDrops(True)
+        self.album_table.setDropIndicatorShown(True)
+        self.album_table.setDragDropMode(QTableView.DragDropMode.InternalMove)
+        self.album_table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        
+        # Make sure horizontal scrolling is enabled if needed
+        self.album_table.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
+        
+        # Enable editing with appropriate triggers
+        self.album_table.setEditTriggers(QTableView.EditTrigger.DoubleClicked | 
+                                        QTableView.EditTrigger.EditKeyPressed |
+                                        QTableView.EditTrigger.AnyKeyPressed)
+        
+        # Disable sorting initially
+        self.album_table.setSortingEnabled(False)
+        
+        # Configure header behavior
+        header = self.album_table.horizontalHeader()
+        if header is not None:
+            header.setSectionsClickable(False)  # Make header non-clickable
+            header.setHighlightSections(False)  # Don't highlight sections
+            header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        else:
+            logging.error("Failed to get horizontal header - it returned None")
+        
+        # Configure vertical header (row numbers)
+        v_header = self.album_table.verticalHeader()
+        if v_header:
+            v_header.setDefaultSectionSize(100)  # Consistent row height
+            v_header.setVisible(self.show_positions)  # Set based on preference
+            v_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)  # Prevent resizing
+            v_header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)  # Center the numbers
+            v_header.setMinimumWidth(30)  # Give enough space for double-digit numbers
+        else:
+            logging.warning("Vertical header not available for album table.")
+        v_header.setStyleSheet("""
+            QHeaderView::section:vertical {
+                background-color: #1A1A1A;
+                color: #1DB954;  /* Spotify green */
+                font-weight: bold;
+                border: none;
+                border-right: 1px solid #333333;
+                padding: 4px;
+            }
+        """)
+        
+        # Create separate delegate instances properly parented to the view
+        country_delegate = ComboBoxDelegate(self.countries, self.album_table)
+        self.genre_delegate_1 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        self.genre_delegate_2 = GenreSearchDelegate(self.genres, self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        self.search_delegate = SearchHighlightDelegate(self.album_table, highlight_color=Qt.GlobalColor.darkYellow)
+        cover_delegate = CoverImageDelegate(self.album_table)
+
+        # Assign delegates to respective columns
+        self.album_table.setItemDelegateForColumn(AlbumModel.COUNTRY, country_delegate)
+        self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_1, self.genre_delegate_1)
+        self.album_table.setItemDelegateForColumn(AlbumModel.GENRE_2, self.genre_delegate_2)
+        self.album_table.setItemDelegateForColumn(AlbumModel.COVER_IMAGE, cover_delegate)
+
+        # Set the search highlight delegate for specified columns
+        for column in [AlbumModel.ARTIST, AlbumModel.ALBUM, AlbumModel.COMMENTS]:
+            self.album_table.setItemDelegateForColumn(column, self.search_delegate)
+
+        # Connect signals
+        self.album_table.clicked.connect(self.handleCellClick)
+        self.album_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.album_table.customContextMenuRequested.connect(self.show_context_menu)
+
+        # Connect model change signals to update UI state
+        self.album_model.dataChanged.connect(self.on_album_data_changed)
+        self.album_model.layoutChanged.connect(self.on_layout_changed)
+        
+        # Set the column widths
+        self.set_album_table_column_widths()
 
     def setup_album_list_tab(self):
         layout = QVBoxLayout()
@@ -2972,6 +3229,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 if a0 is not None:
                     a0.ignore()
                 return
+        
+        # Stop player worker before closing
+        if self.player_worker:
+            self.player_worker.stop()
+            self.player_worker.wait()
+            
         self.save_settings()  # Save settings on close
         logging.debug("Closing the application. No unsaved changes or user chose not to save.")
         if a0 is not None:

@@ -95,6 +95,13 @@ class MenuBar:
         )
         self.main_window.show_positions_action.setChecked(True)  # Default to showing positions
         view_menu.addAction(self.main_window.show_positions_action)
+        
+        # Toggle Player action (checkable)
+        self.main_window.toggle_player_action = self.main_window.create_action(
+            "Show Player", triggered=self.main_window.toggle_player_visibility, checkable=True
+        )
+        self.main_window.toggle_player_action.setChecked(False)  # Default to hidden
+        view_menu.addAction(self.main_window.toggle_player_action)
 
         # Tools menu
         tools_menu = QMenu("Tools", bar)
