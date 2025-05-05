@@ -178,9 +178,6 @@ class CompactPlayer(QWidget):
         
         self.setLayout(main_layout)
         
-        # Initial state
-        self.setEnabled(False)
-        
     def setup_timers(self):
         """Set up timers for updating playback progress."""
         self.update_timer = QTimer()
