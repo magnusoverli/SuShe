@@ -694,12 +694,21 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.compact_player = None
         self.player_worker = None
         self.player_enabled = False
+        
+        # ADD THIS LINE:
+        self.active_workers = []  # Track all active workers
+        self.connecting = False  # Prevent multiple rapid connection attempts
 
         # Initialize search-related variables
         self.matches = []
         self.current_match_index = -1
 
         self.auth_required_signal.connect(self.show_auth_required_dialog)
+
+    def cleanup_worker(self, worker):
+        """Remove finished worker from active list"""
+        if worker in self.active_workers:
+            self.active_workers.remove(worker)
 
     def perform_initialization(self):
         # Initialize UI and other components
@@ -1480,35 +1489,45 @@ class SpotifyAlbumAnalyzer(QMainWindow):
 
     def toggle_player_connection(self):
         """Toggle Spotify Connect player connection."""
+        # Prevent multiple rapid clicks
+        if hasattr(self, 'connecting') and self.connecting:
+            return
+            
         if not self.spotify_player:
-            # Initialize player
-            if not hasattr(self, 'spotify_auth') or not self.spotify_auth.access_token:
-                self.login_to_spotify()
-                return
+            self.connecting = True
+            try:
+                # Initialize player
+                if not hasattr(self, 'spotify_auth') or not self.spotify_auth.access_token:
+                    self.login_to_spotify()
+                    return
+                    
+                self.spotify_player = SpotifyPlayer(self)
+                self.compact_player.setVisible(True)
+                self.compact_player.connect_btn.setText("Disconnect")
                 
-            self.spotify_player = SpotifyPlayer(self)
-            self.compact_player.setVisible(True)
-            self.compact_player.connect_btn.setText("Disconnect")
-            
-            # Enable all controls once connected
-            self.compact_player.prev_btn.setEnabled(True)
-            self.compact_player.play_pause_btn.setEnabled(True)
-            self.compact_player.next_btn.setEnabled(True)
-            self.compact_player.progress_slider.setEnabled(True)
-            self.compact_player.volume_slider.setEnabled(True)
-            self.compact_player.device_combo.setEnabled(True)
-            
-            # Start polling for playback state
-            self.player_worker = SpotifyPlayerWorker(self.spotify_player, "get_playback_state")
-            self.player_worker.playback_state_updated.connect(self.on_playback_state_updated)
-            self.player_worker.error_occurred.connect(self.on_player_error)
-            self.player_worker.start()
-            
-            # Get initial device list
-            device_worker = SpotifyPlayerWorker(self.spotify_player, "get_devices")
-            device_worker.devices_updated.connect(self.on_devices_updated)
-            device_worker.start()
-            
+                # Enable all controls once connected
+                self.compact_player.prev_btn.setEnabled(True)
+                self.compact_player.play_pause_btn.setEnabled(True)
+                self.compact_player.next_btn.setEnabled(True)
+                self.compact_player.progress_slider.setEnabled(True)
+                self.compact_player.volume_slider.setEnabled(True)
+                self.compact_player.device_combo.setEnabled(True)
+                
+                # Start polling for playback state
+                self.player_worker = SpotifyPlayerWorker(self.spotify_player, "get_playback_state")
+                self.player_worker.playback_state_updated.connect(self.on_playback_state_updated)
+                self.player_worker.error_occurred.connect(self.on_player_error)
+                self.player_worker.start()
+                
+                # Get initial device list
+                device_worker = SpotifyPlayerWorker(self.spotify_player, "get_devices")
+                device_worker.devices_updated.connect(self.on_devices_updated)
+                device_worker.finished.connect(lambda: self.cleanup_worker(device_worker))
+                self.active_workers.append(device_worker)
+                device_worker.start()
+            finally:
+                self.connecting = False
+                
         else:
             # Disconnect player
             if self.player_worker:
@@ -1516,6 +1535,12 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 self.player_worker.wait()
                 self.player_worker = None
                 
+            # Stop all active workers
+            for worker in self.active_workers:
+                worker.stop()
+                worker.wait()
+            self.active_workers.clear()
+            
             self.spotify_player = None
             self.compact_player.reset_ui()
             
@@ -1566,6 +1591,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             worker = SpotifyPlayerWorker(self.spotify_player, "play", device_id=device_id)
             
         worker.operation_completed.connect(lambda success: self.handle_operation_result("play/pause", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def on_next_track_requested(self):
@@ -1574,8 +1601,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
             
         worker = SpotifyPlayerWorker(self.spotify_player, "next_track", 
-                                   device_id=self.compact_player.current_device_id)
+                                device_id=self.compact_player.current_device_id)
         worker.operation_completed.connect(lambda success: self.handle_operation_result("next track", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def on_previous_track_requested(self):
@@ -1584,8 +1613,10 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
             
         worker = SpotifyPlayerWorker(self.spotify_player, "previous_track", 
-                                   device_id=self.compact_player.current_device_id)
+                                device_id=self.compact_player.current_device_id)
         worker.operation_completed.connect(lambda success: self.handle_operation_result("previous track", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def on_device_change_requested(self, device_id):
@@ -1595,6 +1626,8 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             
         worker = SpotifyPlayerWorker(self.spotify_player, "transfer_playback", device_id=device_id)
         worker.operation_completed.connect(lambda success: self.handle_operation_result("transfer playback", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def on_volume_change_requested(self, volume):
@@ -1603,9 +1636,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
             
         worker = SpotifyPlayerWorker(self.spotify_player, "set_volume", 
-                                   volume_percent=volume, 
-                                   device_id=self.compact_player.current_device_id)
+                                volume_percent=volume, 
+                                device_id=self.compact_player.current_device_id)
         worker.operation_completed.connect(lambda success: self.handle_operation_result("volume change", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def on_seek_requested(self, position_ms):
@@ -1614,9 +1649,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             return
             
         worker = SpotifyPlayerWorker(self.spotify_player, "seek", 
-                                   position_ms=position_ms, 
-                                   device_id=self.compact_player.current_device_id)
+                                position_ms=position_ms, 
+                                device_id=self.compact_player.current_device_id)
         worker.operation_completed.connect(lambda success: self.handle_operation_result("seek", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def on_album_art_click(self, album_id):
@@ -1626,9 +1663,11 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             
         # Play the album that's currently displayed
         worker = SpotifyPlayerWorker(self.spotify_player, "play", 
-                                   context_uri=f"spotify:album:{album_id}",
-                                   device_id=self.compact_player.current_device_id)
+                                context_uri=f"spotify:album:{album_id}",
+                                device_id=self.compact_player.current_device_id)
         worker.operation_completed.connect(lambda success: self.handle_operation_result("play album", success))
+        worker.finished.connect(lambda: self.cleanup_worker(worker))
+        self.active_workers.append(worker)
         worker.start()
         
     def handle_operation_result(self, operation, success):
@@ -1642,6 +1681,16 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if self.compact_player:
             is_visible = self.compact_player.isVisible()
             self.compact_player.setVisible(not is_visible)
+
+    def cleanup_download_worker(self):
+        """Clean up download worker and thread"""
+        if hasattr(self, 'download_worker') and self.download_worker:
+            self.download_worker = None
+        if hasattr(self, 'download_thread') and self.download_thread:
+            if self.download_thread.isRunning():
+                self.download_thread.quit()
+                self.download_thread.wait()
+            self.download_thread = None
 
     def open_search_dialog(self):
         """Opens a dialog for searching albums"""
@@ -3234,6 +3283,13 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         if self.player_worker:
             self.player_worker.stop()
             self.player_worker.wait()
+            self.player_worker = None
+            
+        # Stop all active workers
+        for worker in self.active_workers:
+            worker.stop()
+            worker.wait()
+        self.active_workers.clear()
             
         self.save_settings()  # Save settings on close
         logging.debug("Closing the application. No unsaved changes or user chose not to save.")
