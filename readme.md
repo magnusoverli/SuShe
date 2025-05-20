@@ -38,11 +38,10 @@ The rest of the table includes columns for the following info to be added manual
 - Country
 - Genre 1
 - Genre 2
-- Rating (0.00 - 5.00)
 - Comment
 
 The application stores the users list as a json file. The cover art is included in the json as a base64 encoded string. This was done to consolidate all data in a single file, making it easier for users to move, store or submit their list.
-The saved json file will store the albums sorted based on the rating in descending order. It will also store a rank value, deciding the order of the album in the list, and a points value. The points is only relevant if you want to compile some aggregated album of the year list, comprised of lists from multiple users. 
+The saved json file will store the albums in the sorted order. It will also store a rank value, deciding the order of the album in the list, and a points value. The points is only relevant if you want to compile some aggregated album of the year list, comprised of lists from multiple users. The relationship between a rank and the amount of points can be defined in the points.txt file.
 
 It is also supported to open an album directly from the list, in the preferred player of the user (Spotify or Tidal). If Spotify is selected in settings, this will open the Spotify application and the album directly. 
 Since Tidal has (up until recently) been more closed regarding their API, I have not implemented the same integration, but instead opted for creating a URL that will open the Tidal website search, using the artist name and album name as search input. Not very elegant, but it sort of works.
