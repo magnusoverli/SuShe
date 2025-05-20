@@ -74,7 +74,9 @@ class ImageCache:
         self.cache[key] = value
         if len(self.cache) > self.capacity:
             evicted = self.cache.popitem(last=False)  # Evict least recently used item
-            logging.debug(f"Evicted from cache: {evicted[0]}")
+            logging.info(f"Cache reached capacity ({self.capacity}). Evicted from cache: {evicted[0]}")
+        elif len(self.cache) == self.capacity:
+            logging.debug(f"Cache reached capacity ({self.capacity})")
 
 class ImageWidget(QWidget):
     """

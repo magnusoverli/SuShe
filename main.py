@@ -87,12 +87,21 @@ def setup_logging():
     return text_edit_logger
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+    """
+    Get absolute path to resource, works for dev and for PyInstaller.
+    This is the canonical implementation used throughout the application.
+    Import this function from main.py in other modules.
+    
+    Args:
+        relative_path (str): Path relative to the application root
+        
+    Returns:
+        str: The absolute path to the resource
+    """
     try:
         # Check if running in a PyInstaller bundle
         if hasattr(sys, '_MEIPASS'):
             # PyInstaller creates a temp folder and stores path in _MEIPASS
-            # Access the attribute safely now that we know it exists
             base_path = getattr(sys, '_MEIPASS')
         else:
             # Not running in a bundle, use the current directory
@@ -767,16 +776,15 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         self.notification_image_label.hide()
 
     def show_auth_required_dialog(self):
-        """Shows the auth required dialog on the main thread"""
+        """Shows the authentication required dialog on the main thread"""
         logging.info("Showing authentication required dialog on main thread")
         reply = QMessageBox.question(
             self, "Spotify Login Required", 
             "You need to log in to Spotify to continue. Would you like to log in now?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-        
         if reply == QMessageBox.StandardButton.Yes:
-            self.tabs.setCurrentWidget(self.settings_tab)
+            self.open_settings_dialog()
             self.login_to_spotify()
 
     def create_action(self, name, shortcut=None, triggered=None, icon_path=None, checkable=False):
@@ -1567,8 +1575,9 @@ class SpotifyAlbumAnalyzer(QMainWindow):
                 QTimer.singleShot(0, lambda: self.statusBar().showMessage("Configuration imported successfully.", 5000))
                 logging.debug("Status bar message scheduled.")
 
-                self.tabs.setCurrentWidget(self.settings_tab)
-                logging.debug("Navigated to Settings tab after import.")
+                # Open settings dialog instead of navigating to settings tab
+                self.open_settings_dialog()
+                logging.debug("Opened settings dialog after import.")
                 
             except Exception as e:
                 logging.error(f"Failed to import config: {e}")
@@ -1671,13 +1680,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         # Set the layout for the album list tab
         self.album_list_layout = layout  # Store the layout
         self.album_list_tab.setLayout(self.album_list_layout)
-
-    def on_sort_order_changed(self, column, order):
-        # Don't use self.album_table.horizontalHeaderItem(column).text()
-        # Use the model's column names instead
-        column_name = self.album_model.COLUMN_NAMES[column]
-        order_str = 'ascending' if order == Qt.SortOrder.AscendingOrder else 'descending'
-        logging.info(f"Album table sorted by column '{column_name}' in {order_str} order")
 
     def set_album_table_column_widths(self):
         """Set and lock column widths with proper header alignment."""
@@ -2010,16 +2012,19 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save Telegram settings. Details: {e}")
 
-    def save_application_settings(self):
+    def save_application_settings(self, new_player=None):
         """
         Save application settings with improved player change handling.
         """
-        new_player = self.preferred_music_player_combo.currentText()
+        # Use the passed player value if provided, otherwise use current value
+        if new_player is None:
+            new_player = self.preferred_music_player
+        
         current_player = self.preferred_music_player
         
         # Only show confirm dialog if player is changing and we have albums
         is_changing_player = (new_player != current_player)
-        has_albums = (self.album_model.rowCount() > 0)  # Use model.rowCount()
+        has_albums = (self.album_model.rowCount() > 0)
         
         if is_changing_player and has_albums:
             reply = QMessageBox.question(
@@ -2030,10 +2035,6 @@ class SpotifyAlbumAnalyzer(QMainWindow):
             )
             
             if reply == QMessageBox.StandardButton.No:
-                # Revert combo box selection
-                index = self.preferred_music_player_combo.findText(current_player)
-                if index >= 0:
-                    self.preferred_music_player_combo.setCurrentIndex(index)
                 return
         
         # Save the settings
@@ -2230,31 +2231,14 @@ class SpotifyAlbumAnalyzer(QMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            self.tabs.setCurrentWidget(self.settings_tab)
+            # Open settings dialog instead of navigating to settings tab
+            self.open_settings_dialog()
             self.login_to_spotify()
             # Return the token if we got one
             if hasattr(self, 'spotify_auth') and self.spotify_auth.access_token:
                 return self.spotify_auth.access_token
         
         return None
-
-    def _refresh_token(self):
-        """Worker function to refresh token"""
-        if self.spotify_auth.refresh_access_token():
-            tokens_path = self.get_user_data_path('spotify_tokens.json')
-            self.spotify_auth.save_tokens(tokens_path)
-            return True
-        return False
-
-    def on_token_refreshed(self, success):
-        """Handle token refresh completion"""
-        if success:
-            logging.info("Spotify token refreshed successfully")
-            # You might want to retry the operation that needed the token
-        else:
-            logging.warning("Failed to refresh Spotify token")
-            # Handle failed refresh - may need to prompt for login again
-            self.spotify_auth.access_token = None
 
     def _search_artist(self, artist_name):
         access_token = self.get_access_token()

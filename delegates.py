@@ -313,13 +313,6 @@ class SearchHighlightDelegate(QStyledItemDelegate):
 
             # Get the cell text from the model data
             data = index.data(Qt.ItemDataRole.DisplayRole)
-            
-            # We no longer need the backward compatibility code that uses cellWidget
-            # This was causing the error:
-            # if not data:
-            #     widget = parent.cellWidget(index.row(), index.column())
-            #     if isinstance(widget, QLabel):
-            #         data = strip_html_tags(widget.text())
 
             if data:
                 data_lower = str(data).lower()
@@ -434,21 +427,20 @@ class GenreSearchDelegate(QStyledItemDelegate):
         editor.setCurrentIndex(idx if idx >= 0 else -1)
 
     def setModelData(self, editor, model, index):
-        """
-        Updates the model with the editor's current value.
-        """
+        """Updates the model with the editor's current value."""
         if not isinstance(editor, QComboBox):
             return
-            
+                
         if model is None:
             return
-            
+                
         new_value = editor.currentText().strip()
         
         # Only update if the value actually changed
         current_value = model.data(index, Qt.ItemDataRole.EditRole)
         if new_value != current_value:
             model.setData(index, new_value, Qt.ItemDataRole.EditRole)
+
     def updateEditorGeometry(self, editor, option, index):
         """
         Sets the editor's geometry.

@@ -1562,7 +1562,7 @@ class SettingsDialog(QDialog):
         app_settings_group = QGroupBox("Application")
         app_settings_group.setObjectName("settings_group")
         app_settings_layout = QFormLayout(app_settings_group)
-        app_settings_layout.setSpacing(12)
+        app_settings_layout.setSpacing(16)  # Increase spacing between form rows
         app_settings_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         app_settings_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         app_settings_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -1677,9 +1677,8 @@ class SettingsDialog(QDialog):
     def save_application_settings(self):
         """Save application settings"""
         if self._parent and hasattr(self._parent, 'save_application_settings'):
-            # Update parent's combo box if needed
-            if hasattr(self._parent, 'preferred_music_player_combo'):
-                index = self.preferred_music_player_combo.findText(self.preferred_music_player_combo.currentText())
-                if index >= 0:
-                    self._parent.preferred_music_player_combo.setCurrentIndex(index)
-            self._parent.save_application_settings()
+            # Get the selected music player from the dialog's combo box
+            selected_player = self.preferred_music_player_combo.currentText()
+            
+            # Pass the selected value directly to the parent's save method
+            self._parent.save_application_settings(selected_player)
