@@ -1,8 +1,10 @@
 # SuShe (SuperSheet)
 
 SuShe is a very basic tool, aimed at creating rich and coherent "album-of-the-year" lists for personal use.
+The tool lets you add an album to your list and sort the list by dragging the albums up and down the list.
+The list is exportable as an HTML page or json.
 
-![{66F0EC70-CC9D-43FB-9721-772D20BE1EEC}](https://github.com/user-attachments/assets/20527c23-b5a2-455e-b87f-673efe712740)
+![{07E4B957-0196-41B4-B9E5-CF656FE59D29}](https://github.com/user-attachments/assets/39e2472c-06ae-435a-a3b5-906d9bb10b36)
 
 ## Background
 
